@@ -1,0 +1,196 @@
+diff --git a/node_modules/react-native-svg/lib/commonjs/web/WebShape.js b/node_modules/react-native-svg/lib/commonjs/web/WebShape.js
+index a78bff9..fd601a4 100644
+--- a/node_modules/react-native-svg/lib/commonjs/web/WebShape.js
++++ b/node_modules/react-native-svg/lib/commonjs/web/WebShape.js
+@@ -9,6 +9,7 @@ var _reactNative = require("react-native");
+ var _prepare = require("./utils/prepare");
+ var _convertInt32Color = require("./utils/convertInt32Color");
+ var _utils = require("./utils");
++var _hasTouchableProperty = function(props) { return props.onPress || props.onPressIn || props.onPressOut || props.onLongPress; };
+ var _SvgTouchableMixin = _interopRequireDefault(require("../lib/SvgTouchableMixin"));
+ function _interopRequireDefault(e) { return e && e.__esModule ? e : { default: e }; }
+ class WebShape extends _react.default.Component {
+@@ -65,7 +66,7 @@ class WebShape extends _react.default.Component {
+     super(props);
+ 
+     // Do not attach touchable mixin handlers if SVG element doesn't have a touchable prop
+-    if ((0, _utils.hasTouchableProperty)(props)) {
++    if (_hasTouchableProperty(props)) {
+       (0, _SvgTouchableMixin.default)(this);
+     }
+     this._remeasureMetricsOnActivation = _utils.remeasure.bind(this);
+diff --git a/node_modules/react-native-svg/lib/commonjs/web/utils/prepare.js b/node_modules/react-native-svg/lib/commonjs/web/utils/prepare.js
+index 32b5db7..a06fed2 100644
+--- a/node_modules/react-native-svg/lib/commonjs/web/utils/prepare.js
++++ b/node_modules/react-native-svg/lib/commonjs/web/utils/prepare.js
+@@ -4,9 +4,54 @@ Object.defineProperty(exports, "__esModule", {
+   value: true
+ });
+ exports.prepare = void 0;
+-var _ = require(".");
++var _extractTransform = require("../../lib/extract/extractTransform");
+ var _resolve = require("../../lib/resolve");
+ var _resolveAssetUri2 = require("../../lib/resolveAssetUri");
++
++var _hasTouchableProperty = function(props) { return props.onPress || props.onPressIn || props.onPressOut || props.onLongPress; };
++
++function _stringifyTransformProps(transformProps) {
++  var transformArray = [];
++  if (transformProps.translate != null) {
++    transformArray.push("translate(" + transformProps.translate + ")");
++  }
++  if (transformProps.translateX != null || transformProps.translateY != null) {
++    transformArray.push("translate(" + (transformProps.translateX || 0) + ", " + (transformProps.translateY || 0) + ")");
++  }
++  if (transformProps.scale != null) {
++    transformArray.push("scale(" + transformProps.scale + ")");
++  }
++  if (transformProps.scaleX != null || transformProps.scaleY != null) {
++    transformArray.push("scale(" + (transformProps.scaleX || 1) + ", " + (transformProps.scaleY || 1) + ")");
++  }
++  if (transformProps.rotation != null) {
++    transformArray.push("rotate(" + transformProps.rotation + ")");
++  }
++  if (transformProps.skewX != null) {
++    transformArray.push("skewX(" + transformProps.skewX + ")");
++  }
++  if (transformProps.skewY != null) {
++    transformArray.push("skewY(" + transformProps.skewY + ")");
++  }
++  return transformArray;
++}
++
++function _parseTransformProp(transform, props) {
++  var transformArray = [];
++  props && transformArray.push.apply(transformArray, _stringifyTransformProps(props));
++  if (Array.isArray(transform)) {
++    if (typeof transform[0] === 'number') {
++      transformArray.push("matrix(" + transform.join(' ') + ")");
++    } else {
++      var stringifiedProps = (0, _extractTransform.transformsArrayToProps)(transform);
++      transformArray.push.apply(transformArray, _stringifyTransformProps(stringifiedProps));
++    }
++  } else if (typeof transform === 'string') {
++    transformArray.push(transform);
++  }
++  return transformArray.length ? transformArray.join(' ') : undefined;
++}
++
+ /**
+  * `react-native-svg` supports additional props that aren't defined in the spec.
+  * This function replaces them in a spec conforming manner.
+@@ -34,7 +79,7 @@ const prepare = (self, props = self.props) => {
+     ...rest
+   } = props;
+   const clean = {
+-    ...((0, _.hasTouchableProperty)(props) ? {
++    ...(_hasTouchableProperty(props) ? {
+       onStartShouldSetResponder: self.touchableHandleStartShouldSetResponder,
+       onResponderTerminationRequest: self.touchableHandleResponderTerminationRequest,
+       onResponderGrant: self.touchableHandleResponderGrant,
+@@ -51,15 +96,15 @@ const prepare = (self, props = self.props) => {
+   }
+ 
+   // we do it like this because setting transform as undefined causes error in web
+-  const parsedTransform = (0, _.parseTransformProp)(transform, props);
++  const parsedTransform = _parseTransformProp(transform, props);
+   if (parsedTransform) {
+     clean.transform = parsedTransform;
+   }
+-  const parsedGradientTransform = (0, _.parseTransformProp)(gradientTransform);
++  const parsedGradientTransform = _parseTransformProp(gradientTransform);
+   if (parsedGradientTransform) {
+     clean.gradientTransform = parsedGradientTransform;
+   }
+-  const parsedPatternTransform = (0, _.parseTransformProp)(patternTransform);
++  const parsedPatternTransform = _parseTransformProp(patternTransform);
+   if (parsedPatternTransform) {
+     clean.patternTransform = parsedPatternTransform;
+   }
+@@ -95,4 +140,3 @@ const prepare = (self, props = self.props) => {
+   return clean;
+ };
+ exports.prepare = prepare;
+-//# sourceMappingURL=prepare.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-svg/lib/module/web/WebShape.js b/node_modules/react-native-svg/lib/module/web/WebShape.js
+index 64801fc..2ec1e9f 100644
+--- a/node_modules/react-native-svg/lib/module/web/WebShape.js
++++ b/node_modules/react-native-svg/lib/module/web/WebShape.js
+@@ -4,7 +4,8 @@ import {
+ unstable_createElement as createElement } from 'react-native';
+ import { prepare } from './utils/prepare';
+ import { convertInt32ColorToRGBA } from './utils/convertInt32Color';
+-import { camelCaseToDashed, hasTouchableProperty, remeasure } from './utils';
++import { camelCaseToDashed, remeasure } from './utils';
++const hasTouchableProperty = props => props.onPress || props.onPressIn || props.onPressOut || props.onLongPress;
+ import SvgTouchableMixin from '../lib/SvgTouchableMixin';
+ export class WebShape extends React.Component {
+   prepareProps(props) {
+diff --git a/node_modules/react-native-svg/lib/module/web/utils/prepare.js b/node_modules/react-native-svg/lib/module/web/utils/prepare.js
+index 796b489..0804ec7 100644
+--- a/node_modules/react-native-svg/lib/module/web/utils/prepare.js
++++ b/node_modules/react-native-svg/lib/module/web/utils/prepare.js
+@@ -1,6 +1,55 @@
+-import { hasTouchableProperty, parseTransformProp } from '.';
++import { transformsArrayToProps } from '../../lib/extract/extractTransform';
+ import { resolve } from '../../lib/resolve';
+ import { resolveAssetUri } from '../../lib/resolveAssetUri';
++
++const hasTouchableProperty = props => props.onPress || props.onPressIn || props.onPressOut || props.onLongPress;
++
++const camelCaseToDashed = camelCase => {
++  return camelCase.replace(/[A-Z]/g, m => '-' + m.toLowerCase());
++};
++
++function stringifyTransformProps(transformProps) {
++  const transformArray = [];
++  if (transformProps.translate != null) {
++    transformArray.push(`translate(${transformProps.translate})`);
++  }
++  if (transformProps.translateX != null || transformProps.translateY != null) {
++    transformArray.push(`translate(${transformProps.translateX || 0}, ${transformProps.translateY || 0})`);
++  }
++  if (transformProps.scale != null) {
++    transformArray.push(`scale(${transformProps.scale})`);
++  }
++  if (transformProps.scaleX != null || transformProps.scaleY != null) {
++    transformArray.push(`scale(${transformProps.scaleX || 1}, ${transformProps.scaleY || 1})`);
++  }
++  if (transformProps.rotation != null) {
++    transformArray.push(`rotate(${transformProps.rotation})`);
++  }
++  if (transformProps.skewX != null) {
++    transformArray.push(`skewX(${transformProps.skewX})`);
++  }
++  if (transformProps.skewY != null) {
++    transformArray.push(`skewY(${transformProps.skewY})`);
++  }
++  return transformArray;
++}
++
++function parseTransformProp(transform, props) {
++  const transformArray = [];
++  props && transformArray.push(...stringifyTransformProps(props));
++  if (Array.isArray(transform)) {
++    if (typeof transform[0] === 'number') {
++      transformArray.push(`matrix(${transform.join(' ')})`);
++    } else {
++      const stringifiedProps = transformsArrayToProps(transform);
++      transformArray.push(...stringifyTransformProps(stringifiedProps));
++    }
++  } else if (typeof transform === 'string') {
++    transformArray.push(transform);
++  }
++  return transformArray.length ? transformArray.join(' ') : undefined;
++}
++
+ /**
+  * `react-native-svg` supports additional props that aren't defined in the spec.
+  * This function replaces them in a spec conforming manner.
+@@ -88,4 +137,3 @@ export const prepare = (self, props = self.props) => {
+   }
+   return clean;
+ };
+-//# sourceMappingURL=prepare.js.map
+\ No newline at end of file

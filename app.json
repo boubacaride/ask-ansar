@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Ask Ansar",
+    "slug": "ask-ansar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "https://d6artovf3mfn.cloudfront.net/images/AV-LOGO-48x48.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "buildNumber": "2",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Allow Ask Ansar to use your location for navigation to sacred places.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Ask Ansar to use your location for navigation to sacred places."
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "https://d6artovf3mfn.cloudfront.net/images/AV-LOGO-48x48.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Ask Ansar to use your location for navigation to sacred places.",
+          "locationWhenInUsePermission": "Allow Ask Ansar to use your location for navigation to sacred places."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
