@@ -15,7 +15,7 @@ import { useSettings } from '@/store/settingsStore';
 import { getSurahVerses, SurahData, QuranVerse } from '@/utils/quranUtils';
 import * as Clipboard from 'expo-clipboard';
 import { speak } from '@/utils/speechUtils';
-import { getQuranAudioPlayer, cleanupQuranAudioPlayer, QuranAudioPlayer } from '@/utils/quranAudio';
+import { getQuranAudioPlayer, cleanupQuranAudioPlayer, QuranAudioPlayer, initializeAudioMode } from '@/utils/quranAudio';
 import { SurahAudioPlayer } from '@/components/SurahAudioPlayer';
 
 interface QuranViewerProps {
@@ -78,6 +78,11 @@ export function QuranViewer({ visible, surahNumber, surahName, onClose }: QuranV
       loadSurahVerses();
     }
   }, [visible, surahNumber]);
+
+  // Initialize audio mode for iOS/Android (enables silent mode playback)
+  useEffect(() => {
+    initializeAudioMode();
+  }, []);
 
   useEffect(() => {
     audioPlayerRef.current = getQuranAudioPlayer();

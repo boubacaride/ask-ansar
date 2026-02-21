@@ -12,6 +12,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '@/store/settingsStore';
 
+// Conditionally import expo-av for native platforms
+let Audio: any;
+if (Platform.OS !== 'web') {
+  Audio = require('expo-av').Audio;
+}
+
 interface SurahAudioPlayerProps {
   visible: boolean;
   surahNumber: number;
@@ -49,8 +55,9 @@ export function SurahAudioPlayer({
   const [duration, setDuration] = useState(0);
   const [showReciterList, setShowReciterList] = useState(false);
 
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // Web: HTMLAudioElement ref | Native: expo-av Sound ref
+  const audioRef = useRef<any>(null);
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const colors = {
     background: darkMode ? '#0a0a0a' : '#f8f9fa',
@@ -111,10 +118,11 @@ export function SurahAudioPlayer({
   };
 
   const setupAudioElement = (url: string) => {
-    if (Platform.OS === 'web') {
-      cleanupAudio();
+    cleanupAudio();
 
-      const audio = new Audio(url);
+    if (Platform.OS === 'web') {
+      // Web: use HTMLAudioElement
+      const audio = new window.Audio(url);
       audioRef.current = audio;
 
       audio.addEventListener('loadedmetadata', () => {
@@ -133,15 +141,65 @@ export function SurahAudioPlayer({
         setError('Erreur lors de la lecture de l\'audio');
         setIsPlaying(false);
       });
+    } else {
+      // Native: use expo-av Audio.Sound
+      setupNativeAudio(url);
+    }
+  };
+
+  const setupNativeAudio = async (url: string) => {
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: false },
+        onNativePlaybackStatusUpdate
+      );
+      audioRef.current = sound;
+    } catch (err) {
+      console.error('Error setting up native audio:', err);
+      setError('Erreur lors du chargement de l\'audio');
+    }
+  };
+
+  const onNativePlaybackStatusUpdate = (status: any) => {
+    if (status.isLoaded) {
+      // Update duration
+      if (status.durationMillis) {
+        setDuration(status.durationMillis / 1000);
+      }
+      // Update current position
+      if (status.positionMillis !== undefined) {
+        setCurrentTime(status.positionMillis / 1000);
+      }
+      // Detect playback finished
+      if (status.didJustFinish) {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      }
+    }
+    if (!status.isLoaded && status.error) {
+      console.error('Native playback error:', status.error);
+      setError('Erreur lors de la lecture de l\'audio');
+      setIsPlaying(false);
     }
   };
 
   const cleanupAudio = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.src = '';
-      audioRef.current = null;
+    if (Platform.OS === 'web') {
+      // Web cleanup
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
+        audioRef.current = null;
+      }
+    } else {
+      // Native cleanup
+      if (audioRef.current) {
+        audioRef.current.unloadAsync().catch(console.error);
+        audioRef.current = null;
+      }
     }
+
     if (progressIntervalRef.current) {
       clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
@@ -157,21 +215,33 @@ export function SurahAudioPlayer({
     }
 
     try {
-      if (isPlaying) {
-        audioRef.current.pause();
-        if (progressIntervalRef.current) {
-          clearInterval(progressIntervalRef.current);
-        }
-        setIsPlaying(false);
-      } else {
-        await audioRef.current.play();
-        setIsPlaying(true);
-
-        progressIntervalRef.current = setInterval(() => {
-          if (audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
+      if (Platform.OS === 'web') {
+        // Web play/pause
+        if (isPlaying) {
+          audioRef.current.pause();
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
           }
-        }, 100);
+          setIsPlaying(false);
+        } else {
+          await audioRef.current.play();
+          setIsPlaying(true);
+
+          progressIntervalRef.current = setInterval(() => {
+            if (audioRef.current) {
+              setCurrentTime(audioRef.current.currentTime);
+            }
+          }, 100);
+        }
+      } else {
+        // Native play/pause
+        if (isPlaying) {
+          await audioRef.current.pauseAsync();
+          setIsPlaying(false);
+        } else {
+          await audioRef.current.playAsync();
+          setIsPlaying(true);
+        }
       }
     } catch (err) {
       console.error('Error playing audio:', err);
@@ -180,11 +250,21 @@ export function SurahAudioPlayer({
     }
   };
 
-  const handleSeek = (percentage: number) => {
-    if (audioRef.current && duration > 0) {
-      const newTime = (percentage / 100) * duration;
+  const handleSeek = async (percentage: number) => {
+    if (!audioRef.current || duration <= 0) return;
+
+    const newTime = (percentage / 100) * duration;
+
+    if (Platform.OS === 'web') {
       audioRef.current.currentTime = newTime;
       setCurrentTime(newTime);
+    } else {
+      try {
+        await audioRef.current.setPositionAsync(newTime * 1000);
+        setCurrentTime(newTime);
+      } catch (err) {
+        console.error('Error seeking native audio:', err);
+      }
     }
   };
 

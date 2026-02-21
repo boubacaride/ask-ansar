@@ -17,6 +17,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '@/store/settingsStore';
 import { QuranViewer } from '@/components/QuranViewer';
+import { getSurahVerses } from '@/utils/quranUtils';
+import { isSurahLocallyCached } from '@/utils/quranVerseCache';
+
+// Popular surahs to prefetch in background (Al-Fatiha, Al-Baqarah, Al-Kahf, Ya-Sin, Ar-Rahman, Al-Mulk, Al-Waqiah, Al-Ikhlas, Al-Falaq, An-Nas)
+const POPULAR_SURAH_NUMBERS = [1, 2, 18, 36, 55, 67, 56, 112, 113, 114];
 
 // Conditionally import WebView for native platforms
 let WebView: any = null;
@@ -157,6 +162,40 @@ export default function QuranScreen() {
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const LOAD_TIMEOUT_MS = 20000; // 20 seconds
+
+  // Background prefetch popular surahs for instant loading
+  useEffect(() => {
+    const prefetchPopularSurahs = async () => {
+      // Wait 2 seconds before starting to not block initial render
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      for (const surahNumber of POPULAR_SURAH_NUMBERS) {
+        try {
+          // Check if already cached locally for all 3 languages
+          const [arCached, enCached, frCached] = await Promise.all([
+            isSurahLocallyCached(surahNumber, 'arabic'),
+            isSurahLocallyCached(surahNumber, 'english'),
+            isSurahLocallyCached(surahNumber, 'french'),
+          ]);
+
+          if (arCached && enCached && frCached) {
+            continue; // Already fully cached
+          }
+
+          // Fetch & cache (this will go through two-tier cache automatically)
+          await getSurahVerses(surahNumber, true, true);
+
+          // Small delay between fetches to not overwhelm the network
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        } catch (err) {
+          // Silently skip failed prefetches — not critical
+          console.warn(`Prefetch failed for surah ${surahNumber}:`, err);
+        }
+      }
+    };
+
+    prefetchPopularSurahs();
+  }, []);
 
   // Clear timeout on unmount or when modal closes
   useEffect(() => {
