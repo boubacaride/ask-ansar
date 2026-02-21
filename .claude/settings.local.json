@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(npx expo install:*)",
+      "Bash(where:*)",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(cmd.exe /c \"where npm\")",
+      "Bash(cmd.exe /c \"where npx\")",
+      "Bash(export PATH=\"$PATH:/c/Program Files/nodejs:/c/Users/i_bac/AppData/Roaming/npm\")",
+      "Bash(node:*)",
+      "Bash(npm --version:*)",
+      "Bash(cmd.exe /c \"node --version\")",
+      "Bash(powershell.exe -Command \"node --version; npm --version; \\(Get-Command node\\).Source\")",
+      "Bash(powershell.exe -Command \"Get-ChildItem -Path ''C:\\\\Users\\\\i_bac\\\\AppData\\\\Roaming\\\\nvm'' -ErrorAction SilentlyContinue; Get-ChildItem -Path ''C:\\\\Users\\\\i_bac\\\\.volta'' -ErrorAction SilentlyContinue; Get-ChildItem -Path ''C:\\\\Users\\\\i_bac\\\\AppData\\\\Local\\\\fnm'' -ErrorAction SilentlyContinue; Get-ChildItem -Path ''C:\\\\Users\\\\i_bac\\\\scoop'' -ErrorAction SilentlyContinue\")",
+      "Bash(powershell.exe -NoProfile -Command \"[System.Environment]::GetEnvironmentVariable\\(''PATH'',''User''\\)\")",
+      "Bash(powershell.exe -NoProfile -Command \"[System.Environment]::GetEnvironmentVariable\\(''PATH'',''Machine''\\)\")",
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\Users\\\\i_bac'' -Filter ''node.exe'' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 5 -ExpandProperty FullName\")",
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\Program Files'',''C:\\\\Program Files \\(x86\\)'' -Filter ''node.exe'' -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName\")",
+      "Bash(powershell.exe -NoProfile -Command:*)",
+      "Bash(npx expo:*)",
+      "Bash(npx eas-cli:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(git rm:*)"
+    ]
+  }
+}
