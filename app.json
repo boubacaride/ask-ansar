@@ -10,6 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.ansarvoyage.askansar",
       "buildNumber": "2",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Allow Ask Ansar to use your location for navigation to sacred places.",

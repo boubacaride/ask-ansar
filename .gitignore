@@ -45,4 +45,4 @@ Thumbs.db
 .bolt/
 
 # eas
-eas.json
+# eas.json (needed in repo for EAS Build)
