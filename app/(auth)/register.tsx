@@ -1,6 +1,15 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, ScrollView, ActivityIndicator, Pressable } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  ScrollView,
+  ActivityIndicator,
+  Pressable,
+  Platform,
+} from 'react-native';
+import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ArrowLeft } from 'lucide-react-native';
@@ -8,32 +17,19 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function Register() {
   const router = useRouter();
-  const { signUp } = useAuth();
+  const { sendOtp } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
     fullName: '',
     email: '',
-    password: '',
-    confirmPassword: '',
   });
 
-  const handleSignUp = async () => {
+  const handleGetStarted = async () => {
     setError(null);
-    
-    // Basic validation
-    if (!form.fullName || !form.email || !form.password || !form.confirmPassword) {
-      setError('All fields are required');
-      return;
-    }
 
-    if (form.password !== form.confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (form.password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (!form.fullName.trim() || !form.email.trim()) {
+      setError('Please enter your name and email');
       return;
     }
 
@@ -45,16 +41,11 @@ export default function Register() {
 
     try {
       setLoading(true);
-      await signUp({
-        email: form.email,
-        password: form.password,
-        options: {
-          data: {
-            full_name: form.fullName,
-          },
-        },
+      await sendOtp({ email: form.email.trim(), fullName: form.fullName.trim() });
+      router.push({
+        pathname: '/(auth)/verify',
+        params: { email: form.email.trim() },
       });
-      router.replace('/(tabs)');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -64,30 +55,29 @@ export default function Register() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <Animated.View
-          entering={FadeInDown.delay(200)}
+          entering={Platform.OS !== 'web' ? FadeInDown.delay(200) : undefined}
           style={styles.header}
         >
           <Pressable onPress={() => router.back()}>
-            <ArrowLeft
-              size={24}
-              color="#0053C1"
-            />
+            <ArrowLeft size={24} color="#0053C1" />
           </Pressable>
-          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.title}>Get Started</Text>
         </Animated.View>
 
-        <Animated.View 
-          entering={FadeInDown.delay(400)}
+        <Animated.View
+          entering={Platform.OS !== 'web' ? FadeInDown.delay(400) : undefined}
           style={styles.form}
         >
-          {error && (
-            <Text style={styles.error}>{error}</Text>
-          )}
+          <Text style={styles.subtitle}>
+            Enter your name and email to get started. We'll send you a verification code.
+          </Text>
+
+          {error && <Text style={styles.error}>{error}</Text>}
 
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Full Name</Text>
@@ -97,6 +87,7 @@ export default function Register() {
               value={form.fullName}
               onChangeText={(text) => setForm({ ...form, fullName: text })}
               autoCapitalize="words"
+              autoComplete="name"
             />
           </View>
 
@@ -109,53 +100,25 @@ export default function Register() {
               onChangeText={(text) => setForm({ ...form, email: text })}
               autoCapitalize="none"
               keyboardType="email-address"
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Create a password"
-              value={form.password}
-              onChangeText={(text) => setForm({ ...form, password: text })}
-              secureTextEntry
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Confirm Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Confirm your password"
-              value={form.confirmPassword}
-              onChangeText={(text) => setForm({ ...form, confirmPassword: text })}
-              secureTextEntry
+              autoComplete="email"
             />
           </View>
 
           <Animated.View
-            entering={FadeInDown.delay(600)}
+            entering={Platform.OS !== 'web' ? FadeInDown.delay(600) : undefined}
             style={styles.buttonContainer}
           >
             <Pressable
-              style={{...styles.button, ...(loading && styles.buttonDisabled)}}
-              onPress={handleSignUp}
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleGetStarted}
               disabled={loading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.buttonText}>Create Account</Text>
+                <Text style={styles.buttonText}>Send Verification Code</Text>
               )}
             </Pressable>
-
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account?</Text>
-              <Link href="/login" style={styles.footerLink}>
-                Log In
-              </Link>
-            </View>
           </Animated.View>
         </Animated.View>
       </ScrollView>
@@ -185,6 +148,12 @@ const styles = StyleSheet.create({
   },
   form: {
     flex: 1,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#666',
+    lineHeight: 24,
+    marginBottom: 24,
   },
   error: {
     color: '#dc2626',
@@ -225,20 +194,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 18,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  footerText: {
-    color: '#666',
-    marginRight: 4,
-  },
-  footerLink: {
-    color: '#0053C1',
     fontWeight: '600',
   },
 });

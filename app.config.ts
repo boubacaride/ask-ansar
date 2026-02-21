@@ -47,6 +47,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   plugins: [
     'expo-router',
+    'expo-auth-session',
     [
       'expo-location',
       {
@@ -63,7 +64,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
     eas: {
-      projectId: 'your-eas-project-id',
+      projectId: '5706ffd8-a468-4b73-9181-126eea9fbb83',
     },
   },
 });

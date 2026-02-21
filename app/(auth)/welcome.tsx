@@ -1,16 +1,43 @@
-import { View, Text, StyleSheet, Image, Platform, Pressable, useWindowDimensions, ScrollView } from 'react-native';
+import { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  Platform,
+  Pressable,
+  useWindowDimensions,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
 import { Link } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Welcome() {
   const { width, height } = useWindowDimensions();
-  // On mobile web, cap the image size so it doesn't overflow
+  const { signInWithGoogle } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const imageSize = Math.min(width * 0.65, height * 0.35, 320);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setError(null);
+      setGoogleLoading(true);
+      await signInWithGoogle();
+    } catch (err) {
+      if (err instanceof Error && !err.message.includes('cancel')) {
+        setError('Google sign-in failed. Please try again.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Background overlay */}
       <View style={[styles.gradient, { height: height * 0.7 }]} />
 
       <ScrollView
@@ -31,7 +58,9 @@ export default function Welcome() {
             ]}
           >
             <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=800&auto=format&fit=crop&q=80' }}
+              source={{
+                uri: 'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?w=800&auto=format&fit=crop&q=80',
+              }}
               style={styles.image}
               resizeMode="cover"
             />
@@ -58,21 +87,43 @@ export default function Welcome() {
             entering={Platform.OS !== 'web' ? FadeInDown.delay(600) : undefined}
             style={styles.buttonContainer}
           >
+            {error && <Text style={styles.error}>{error}</Text>}
+
             <Link href="/register" asChild>
-              <Pressable style={{...styles.button, ...styles.primaryButton}}>
-                <Text style={{...styles.buttonText, ...styles.primaryButtonText}}>
-                  Create Account
+              <Pressable style={[styles.button, styles.primaryButton]}>
+                <Text style={[styles.buttonText, styles.primaryButtonText]}>
+                  Get Started
                 </Text>
               </Pressable>
             </Link>
 
-            <Link href="/login" asChild>
-              <Pressable style={{...styles.button, ...styles.secondaryButton}}>
-                <Text style={{...styles.buttonText, ...styles.secondaryButtonText}}>
-                  Log In
-                </Text>
-              </Pressable>
-            </Link>
+            <View style={styles.dividerContainer}>
+              <View style={styles.divider} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.divider} />
+            </View>
+
+            <Pressable
+              style={[styles.button, styles.googleButton]}
+              onPress={handleGoogleSignIn}
+              disabled={googleLoading}
+            >
+              {googleLoading ? (
+                <ActivityIndicator color="#444" />
+              ) : (
+                <>
+                  <Image
+                    source={{
+                      uri: 'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                    }}
+                    style={styles.googleIcon}
+                  />
+                  <Text style={[styles.buttonText, styles.googleButtonText]}>
+                    Continue with Google
+                  </Text>
+                </>
+              )}
+            </Pressable>
           </Animated.View>
         </View>
       </ScrollView>
@@ -172,22 +223,31 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     marginBottom: Platform.OS === 'web' ? 16 : 24,
   },
+  error: {
+    color: '#dc2626',
+    backgroundColor: '#fee2e2',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
   button: {
     width: '100%',
     height: Platform.OS === 'web' ? 48 : 56,
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    flexDirection: 'row',
+    gap: 10,
   },
   primaryButton: {
     backgroundColor: '#0053C1',
-  },
-  secondaryButton: {
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#0053C1',
     marginBottom: 0,
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#ddd',
   },
   buttonText: {
     fontSize: Platform.OS === 'web' ? 16 : 18,
@@ -196,7 +256,26 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
   },
-  secondaryButtonText: {
-    color: '#0053C1',
+  googleButtonText: {
+    color: '#444',
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e0e0e0',
+  },
+  dividerText: {
+    color: '#999',
+    paddingHorizontal: 16,
+    fontSize: 14,
   },
 });
