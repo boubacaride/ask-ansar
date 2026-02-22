@@ -1,37 +1,23 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
-  Linking,
   Platform,
   TextInput,
-  Modal,
-  ActivityIndicator,
-  SafeAreaView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '@/store/settingsStore';
 import { QuranViewer } from '@/components/QuranViewer';
+import { MushafReader } from '@/components/MushafReader';
 import { getSurahVerses } from '@/utils/quranUtils';
 import { isSurahLocallyCached } from '@/utils/quranVerseCache';
 
 // Popular surahs to prefetch in background (Al-Fatiha, Al-Baqarah, Al-Kahf, Ya-Sin, Ar-Rahman, Al-Mulk, Al-Waqiah, Al-Ikhlas, Al-Falaq, An-Nas)
 const POPULAR_SURAH_NUMBERS = [1, 2, 18, 36, 55, 67, 56, 112, 113, 114];
-
-// Conditionally import WebView for native platforms
-let WebView: any = null;
-if (Platform.OS !== 'web') {
-  try {
-    WebView = require('react-native-webview').WebView;
-  } catch {}
-}
-
-const QURAN_READER_URL = 'https://qurancomplex.gov.sa/quran-hafs/#flipbook-df_11311/9/';
 
 const SURAHS = [
   { number: 1, name: 'Al-Fatihah', arabicName: 'الفاتحة', verses: 7, type: 'Mecquoise' },
@@ -155,13 +141,7 @@ export default function QuranScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewerVisible, setViewerVisible] = useState(false);
   const [selectedSurah, setSelectedSurah] = useState<{ number: number; name: string } | null>(null);
-  const [quranReaderVisible, setQuranReaderVisible] = useState(false);
-  const [readerLoading, setReaderLoading] = useState(true);
-  const [readerError, setReaderError] = useState(false);
-  const [readerKey, setReaderKey] = useState(0); // bump to force re-mount iframe/WebView
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const LOAD_TIMEOUT_MS = 20000; // 20 seconds
+  const [mushafVisible, setMushafVisible] = useState(false);
 
   // Background prefetch popular surahs for instant loading
   useEffect(() => {
@@ -196,49 +176,6 @@ export default function QuranScreen() {
 
     prefetchPopularSurahs();
   }, []);
-
-  // Clear timeout on unmount or when modal closes
-  useEffect(() => {
-    if (!quranReaderVisible && timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-  }, [quranReaderVisible]);
-
-  const startLoadTimeout = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(() => {
-      // If still loading after timeout, show error
-      setReaderLoading(false);
-      setReaderError(true);
-    }, LOAD_TIMEOUT_MS);
-  }, []);
-
-  const handleReaderLoad = useCallback(() => {
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-    setReaderLoading(false);
-    setReaderError(false);
-  }, []);
-
-  const handleReaderError = useCallback(() => {
-    if (timeoutRef.current) { clearTimeout(timeoutRef.current); timeoutRef.current = null; }
-    setReaderLoading(false);
-    setReaderError(true);
-  }, []);
-
-  const handleRetry = useCallback(() => {
-    setReaderLoading(true);
-    setReaderError(false);
-    setReaderKey((k) => k + 1); // force re-mount
-    startLoadTimeout();
-  }, [startLoadTimeout]);
-
-  const openQuranReader = useCallback(() => {
-    setReaderLoading(true);
-    setReaderError(false);
-    setQuranReaderVisible(true);
-    startLoadTimeout();
-  }, [startLoadTimeout]);
 
   const colors = {
     background: darkMode ? '#0a0a0a' : '#f8f9fa',
@@ -298,10 +235,10 @@ export default function QuranScreen() {
           </View>
         </View>
 
-        {/* "Lisez le Saint Coran" Banner */}
+        {/* "Lisez le Saint Coran" Banner — now opens native MushafReader */}
         <TouchableOpacity
           activeOpacity={0.85}
-          onPress={openQuranReader}
+          onPress={() => setMushafVisible(true)}
           style={styles.readerBannerWrapper}
         >
           <LinearGradient
@@ -380,130 +317,11 @@ export default function QuranScreen() {
         />
       )}
 
-      {/* Quran Reader Modal — full-screen with WebView (native) or iframe (web) */}
-      <Modal
-        visible={quranReaderVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setQuranReaderVisible(false)}
-      >
-        <SafeAreaView style={[styles.readerModal, { backgroundColor: darkMode ? '#0a0a0a' : '#fff' }]}>
-          {/* Header bar */}
-          <View style={[styles.readerHeader, { backgroundColor: darkMode ? '#1a1a2e' : '#00897b' }]}>
-            <TouchableOpacity
-              onPress={() => setQuranReaderVisible(false)}
-              style={styles.readerCloseBtn}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.readerHeaderCenter}>
-              <Text style={styles.readerHeaderTitle}>Lisez le Saint Coran</Text>
-              <Text style={styles.readerHeaderArabic}>اقرأ القرآن الكريم</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setQuranReaderVisible(false)}
-              style={styles.readerCloseBtn}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Ionicons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Loading overlay */}
-          {readerLoading && !readerError && (
-            <View style={[styles.readerLoadingOverlay, { backgroundColor: darkMode ? 'rgba(10,10,10,0.92)' : 'rgba(255,255,255,0.92)' }]}>
-              <ActivityIndicator size="large" color="#00897b" />
-              <Text style={[styles.readerLoadingText, { color: darkMode ? '#a0a0b0' : '#6c757d' }]}>
-                Chargement du Coran...
-              </Text>
-              <Text style={[styles.readerLoadingHint, { color: darkMode ? '#6b6b80' : '#9CA3AF' }]}>
-                Le site peut prendre quelques secondes
-              </Text>
-            </View>
-          )}
-
-          {/* Error / Timeout state */}
-          {readerError && (
-            <View style={[styles.readerErrorOverlay, { backgroundColor: darkMode ? '#0a0a0a' : '#fff' }]}>
-              <Ionicons name="cloud-offline-outline" size={56} color={darkMode ? '#555' : '#ccc'} />
-              <Text style={[styles.readerErrorTitle, { color: darkMode ? '#e0e0e0' : '#1a1a2e' }]}>
-                Impossible de charger la page
-              </Text>
-              <Text style={[styles.readerErrorText, { color: darkMode ? '#a0a0b0' : '#6c757d' }]}>
-                Le site met trop de temps à répondre.{'\n'}Vérifiez votre connexion et réessayez.
-              </Text>
-              <TouchableOpacity style={styles.readerRetryBtn} onPress={handleRetry}>
-                <Ionicons name="refresh" size={20} color="#fff" style={{ marginRight: 8 }} />
-                <Text style={styles.readerRetryBtnText}>Réessayer</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.readerOpenBrowserBtn}
-                onPress={() => {
-                  Linking.openURL(QURAN_READER_URL);
-                  setQuranReaderVisible(false);
-                }}
-              >
-                <Ionicons name="open-outline" size={18} color="#00897b" style={{ marginRight: 6 }} />
-                <Text style={[styles.readerOpenBrowserText, { color: '#00897b' }]}>
-                  Ouvrir dans le navigateur
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Content — WebView for native, iframe for web */}
-          {!readerError && (
-            Platform.OS === 'web' ? (
-              <iframe
-                key={readerKey}
-                src={QURAN_READER_URL}
-                style={{
-                  flex: 1,
-                  width: '100%',
-                  height: '100%',
-                  border: 'none',
-                } as any}
-                onLoad={handleReaderLoad}
-                onError={handleReaderError}
-                allow="fullscreen"
-                title="Quran Reader"
-              />
-            ) : WebView ? (
-              <WebView
-                key={readerKey}
-                source={{ uri: QURAN_READER_URL }}
-                style={{ flex: 1 }}
-                javaScriptEnabled={true}
-                domStorageEnabled={true}
-                startInLoadingState={false}
-                onLoadEnd={handleReaderLoad}
-                onError={handleReaderError}
-                onHttpError={handleReaderError}
-                allowsFullscreenVideo={true}
-                scalesPageToFit={true}
-                mixedContentMode="compatibility"
-              />
-            ) : (
-              <View style={styles.readerFallback}>
-                <Ionicons name="globe-outline" size={48} color="#00897b" />
-                <Text style={[styles.readerFallbackText, { color: darkMode ? '#a0a0b0' : '#6c757d' }]}>
-                  WebView non disponible
-                </Text>
-                <TouchableOpacity
-                  style={styles.readerFallbackBtn}
-                  onPress={() => {
-                    Linking.openURL(QURAN_READER_URL);
-                    setQuranReaderVisible(false);
-                  }}
-                >
-                  <Text style={styles.readerFallbackBtnText}>Ouvrir dans le navigateur</Text>
-                </TouchableOpacity>
-              </View>
-            )
-          )}
-        </SafeAreaView>
-      </Modal>
+      {/* Native Mushaf Reader — loads page images from CDN, no WebView needed */}
+      <MushafReader
+        visible={mushafVisible}
+        onClose={() => setMushafVisible(false)}
+      />
     </View>
   );
 }
@@ -625,14 +443,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
-
   // --- "Lisez le Saint Coran" Banner ---
   readerBannerWrapper: {
     marginHorizontal: 20,
     marginTop: 16,
     borderRadius: 16,
     overflow: 'hidden',
-    // Shadow
     ...Platform.select({
       ios: {
         shadowColor: '#00897b',
@@ -685,139 +501,5 @@ const styles = StyleSheet.create({
   },
   readerBannerArrow: {
     marginLeft: 8,
-  },
-
-  // --- Quran Reader Modal ---
-  readerModal: {
-    flex: 1,
-  },
-  readerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    ...Platform.select({
-      ios: {
-        paddingTop: 4,
-      },
-      default: {},
-    }),
-  },
-  readerCloseBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  readerHeaderCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  readerHeaderTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  readerHeaderArabic: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 1,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-  },
-  readerLoadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-    backgroundColor: 'rgba(255,255,255,0.85)',
-  },
-  readerLoadingText: {
-    marginTop: 12,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  readerLoadingHint: {
-    marginTop: 6,
-    fontSize: 13,
-  },
-
-  // --- Error / Timeout state ---
-  readerErrorOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 20,
-    padding: 32,
-  },
-  readerErrorTitle: {
-    fontSize: 19,
-    fontWeight: '700',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  readerErrorText: {
-    fontSize: 14,
-    marginTop: 8,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  readerRetryBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#00897b',
-    paddingVertical: 14,
-    paddingHorizontal: 32,
-    borderRadius: 14,
-    marginTop: 24,
-  },
-  readerRetryBtnText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  readerOpenBrowserBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-  },
-  readerOpenBrowserText: {
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  readerFallback: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 32,
-  },
-  readerFallbackText: {
-    fontSize: 16,
-    marginTop: 12,
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  readerFallbackBtn: {
-    backgroundColor: '#00897b',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 12,
-  },
-  readerFallbackBtnText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
   },
 });
