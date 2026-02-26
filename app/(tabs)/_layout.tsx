@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSettings } from '@/store/settingsStore';
@@ -16,6 +16,8 @@ interface TabIconProps {
 
 export default function TabLayout() {
   const { darkMode } = useSettings();
+  const { width: screenWidth } = useWindowDimensions();
+  const isSmallScreen = screenWidth < 380;
 
   const colors = {
     background: darkMode ? '#0a0a0a' : '#ffffff',
@@ -61,10 +63,10 @@ export default function TabLayout() {
           backgroundColor: colors.tabBar,
           borderTopColor: colors.tabBarBorder,
           borderTopWidth: 1,
-          height: Platform.select({ ios: 88, android: 70, web: 60 }),
-          paddingBottom: Platform.select({ ios: 28, android: 10, web: 6 }),
-          paddingTop: Platform.select({ ios: 10, android: 10, web: 6 }),
-          paddingHorizontal: 4,
+          height: Platform.select({ ios: isSmallScreen ? 80 : 88, android: isSmallScreen ? 62 : 70, web: 56 }),
+          paddingBottom: Platform.select({ ios: isSmallScreen ? 22 : 28, android: isSmallScreen ? 6 : 10, web: 4 }),
+          paddingTop: Platform.select({ ios: isSmallScreen ? 6 : 10, android: isSmallScreen ? 6 : 10, web: 4 }),
+          paddingHorizontal: 2,
           elevation: 0,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },
@@ -72,9 +74,9 @@ export default function TabLayout() {
           shadowRadius: 8,
         },
         tabBarLabelStyle: {
-          fontSize: Platform.OS === 'web' ? 10 : 11,
+          fontSize: Platform.OS === 'web' ? 10 : (isSmallScreen ? 9 : 11),
           fontWeight: '600',
-          marginTop: Platform.OS === 'web' ? 2 : 4,
+          marginTop: Platform.OS === 'web' ? 2 : (isSmallScreen ? 2 : 4),
         },
         tabBarItemStyle: {
           paddingVertical: 4,
@@ -145,6 +147,20 @@ export default function TabLayout() {
 
       <Tabs.Screen
         name="sunnah/[categoryId]"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="sunnah/duas/index"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="sunnah/duas/[duaCategoryId]"
         options={{
           href: null,
         }}

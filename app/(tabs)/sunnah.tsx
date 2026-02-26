@@ -9,10 +9,12 @@ import {
   Platform,
   TextInput,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
 import { HadithViewer } from '@/components/HadithViewer';
 import { SeerahCard } from '@/components/SeerahCard';
@@ -112,10 +114,14 @@ const HADITH_Catégories = [
   { id: 'manners', name: 'Bonnes manières (Adab)', icon: 'user-friends', color: '#00897b' },
   { id: 'family', name: 'Relations familiales', icon: 'home', color: '#ff5722' },
   { id: 'business', name: 'Éthique des affaires', icon: 'balance-scale', color: '#607d8b' },
+  { id: 'duas', name: "Dou'as et Dhikr", icon: 'praying-hands', color: '#00796b' },
 ];
 
 export default function SunnahScreen() {
   const { darkMode } = useSettings();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const isSmallScreen = screenWidth < 380;
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'collections' | 'Catégories'>('collections');
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -147,6 +153,10 @@ export default function SunnahScreen() {
   };
 
   const handleCategoryPress = (category: { id: string; name: string; icon: string; color: string }) => {
+    if (category.id === 'duas') {
+      router.push('/(tabs)/sunnah/duas');
+      return;
+    }
     router.push({
       pathname: '/(tabs)/sunnah/[categoryId]',
       params: {
@@ -164,14 +174,14 @@ export default function SunnahScreen() {
         colors={darkMode ? ['#0a0a0a', '#1a1a2e', '#0d2137'] : ['#f8f9fa', '#e8f5e9', '#c8e6c9']}
         style={styles.gradient}
       >
-        <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
+        <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
           <View style={styles.headerContent}>
-            <View style={[styles.headerIcon, { backgroundColor: 'rgba(0, 137, 123, 0.1)' }]}>
-              <FontAwesome5 name="book-open" size={24} color={colors.primary} />
+            <View style={[styles.headerIcon, { backgroundColor: 'rgba(0, 137, 123, 0.1)', width: isSmallScreen ? 42 : 50, height: isSmallScreen ? 42 : 50, borderRadius: isSmallScreen ? 21 : 25 }]}>
+              <FontAwesome5 name="book-open" size={isSmallScreen ? 20 : 24} color={colors.primary} />
             </View>
             <View>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>La Sounna</Text>
-              <Text style={[styles.headerArabic, { color: colors.accent }]}>السنة النبوية</Text>
+              <Text style={[styles.headerTitle, { color: colors.text, fontSize: isSmallScreen ? 20 : 24 }]}>La Sounna</Text>
+              <Text style={[styles.headerArabic, { color: colors.accent, fontSize: isSmallScreen ? 16 : 18 }]}>السنة النبوية</Text>
             </View>
           </View>
 
@@ -386,9 +396,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    // paddingTop is set dynamically via useSafeAreaInsets
     paddingBottom: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
   headerContent: {
@@ -519,7 +529,8 @@ const styles = StyleSheet.create({
   },
   categoryCard: {
     width: '47%',
-    padding: 16,
+    minWidth: 140,
+    padding: 14,
     borderRadius: 14,
     borderWidth: 1,
     alignItems: 'center',
@@ -559,7 +570,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    paddingTop: Platform.OS === 'ios' ? 56 : 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
   },
