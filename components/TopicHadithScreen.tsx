@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import { router } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { fetchHadithsByCategory, CategoryHadith } from '@/utils/categoryHadithUtils';
 import { useSettings } from '@/store/settingsStore';
+import { generateChatResponseStream } from '@/llm';
+import FormattedText from './FormattedText';
 
 interface TopicHadithScreenProps {
   categoryId: string;
@@ -37,6 +39,8 @@ export function TopicHadithScreen({
   const [expandedHadith, setExpandedHadith] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
+  const [detailStates, setDetailStates] = useState<Map<string, { text: string; loading: boolean }>>(new Map());
+  const detailAbortRef = useRef<AbortController | null>(null);
 
   const colors = {
     background: darkMode ? '#0a0a0a' : '#f8f9fa',
@@ -125,6 +129,61 @@ export function TopicHadithScreen({
     }
     return hadith.englishText;
   };
+
+  const handleVoirPlus = useCallback((hadith: CategoryHadith) => {
+    const key = `${hadith.collectionId}-${hadith.hadithNumber}`;
+
+    // Already loaded
+    if (detailStates.get(key)?.text) return;
+
+    detailAbortRef.current?.abort();
+    const controller = new AbortController();
+    detailAbortRef.current = controller;
+
+    setDetailStates(prev => {
+      const next = new Map(prev);
+      next.set(key, { text: '', loading: true });
+      return next;
+    });
+
+    const hadithContext = hadith.frenchText || hadith.englishText || hadith.arabicText;
+    const prompt = `Voici un hadith de ${hadith.collectionName} (${hadith.reference}):\n"${hadithContext.slice(0, 500)}"\n\nDonne une explication detaillee et approfondie de ce hadith. Inclus obligatoirement:\n1. Le contexte et la signification de ce hadith\n2. Les preuves du Coran liees a ce sujet (cite le verset complet en arabe avec la traduction et la reference sourate:verset)\n3. D'autres Hadiths authentiques qui renforcent ou completent ce hadith (cite la source, le numero et le grade)\n4. Les lecons pratiques a tirer pour le musulman\nSois pedagogique et structure ta reponse clairement.`;
+
+    generateChatResponseStream(
+      prompt,
+      (token) => {
+        if (controller.signal.aborted) return;
+        setDetailStates(prev => {
+          const next = new Map(prev);
+          const current = next.get(key);
+          next.set(key, {
+            text: (current?.text ?? '') + token,
+            loading: true,
+          });
+          return next;
+        });
+      },
+      controller.signal,
+      'topic-detail',
+    )
+      .then(() => {
+        if (controller.signal.aborted) return;
+        setDetailStates(prev => {
+          const next = new Map(prev);
+          const current = next.get(key);
+          if (current) next.set(key, { ...current, loading: false });
+          return next;
+        });
+      })
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        setDetailStates(prev => {
+          const next = new Map(prev);
+          next.set(key, { text: '', loading: false });
+          return next;
+        });
+      });
+  }, [detailStates]);
 
   const renderLanguageButtons = () => (
     <View style={styles.languageContainer}>
@@ -348,6 +407,46 @@ export function TopicHadithScreen({
                     )}
                   </View>
                 </TouchableOpacity>
+
+                {(() => {
+                  const detailKey = `${hadith.collectionId}-${hadith.hadithNumber}`;
+                  const detail = detailStates.get(detailKey);
+                  return (
+                    <>
+                      {!detail && (
+                        <TouchableOpacity
+                          style={[styles.voirPlusButton, { backgroundColor: colors.primary }]}
+                          onPress={() => handleVoirPlus(hadith)}
+                          activeOpacity={0.7}
+                        >
+                          <FontAwesome5 name="book-open" size={14} color="#ffffff" />
+                          <Text style={styles.voirPlusText}>Voir plus</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      {detail && (
+                        <View style={[styles.detailSection, { borderTopColor: colors.cardBorder }]}>
+                          {detail.loading && !detail.text && (
+                            <View style={styles.detailLoading}>
+                              <ActivityIndicator size="small" color={colors.primary} />
+                              <Text style={[styles.detailLoadingText, { color: colors.textSecondary }]}>
+                                Chargement de l'explication detaillee...
+                              </Text>
+                            </View>
+                          )}
+                          {detail.text ? (
+                            <View>
+                              <FormattedText text={detail.text} darkMode={darkMode} />
+                              {detail.loading && (
+                                <Text style={[styles.streamingDots, { color: colors.primary }]}>...</Text>
+                              )}
+                            </View>
+                          ) : null}
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
 
                 <View style={styles.cardFooter}>
                   <TouchableOpacity
@@ -576,5 +675,41 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  voirPlusButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  voirPlusText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  detailSection: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+  },
+  detailLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  detailLoadingText: {
+    fontSize: 14,
+  },
+  streamingDots: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });

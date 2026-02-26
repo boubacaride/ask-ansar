@@ -92,7 +92,7 @@ export default function ChatScreen() {
         clearTimeout(updateTimer);
         updateTimer = null;
       }
-      updateMessage(botId, response.text, response.arabicText, response.translation);
+      updateMessage(botId, response.text, response.arabicText, response.translation, response.sources);
     } catch (error: any) {
       if (error?.name === 'AbortError') {
         // Keep whatever was streamed so far

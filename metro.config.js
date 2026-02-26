@@ -20,6 +20,10 @@ config.resolver = {
   extraNodeModules: {
     '@': `${__dirname}`,
   },
+  // Force CJS-compatible conditions to avoid import.meta errors from zustand ESM on web.
+  // 'require' → CJS entry, 'react-native' → CJS entry for RN packages.
+  // Do NOT include 'import' or 'module' — those resolve to ESM which uses import.meta.
+  unstable_conditionNames: ['require', 'react-native'],
 };
 
 // Reduce memory usage and improve performance

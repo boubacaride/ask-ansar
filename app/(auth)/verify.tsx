@@ -59,8 +59,9 @@ export default function Verify() {
       setResent(true);
       setCooldown(60);
       setTimeout(() => setResent(false), 5000);
-    } catch {
-      setError('Failed to resend code. Please wait and try again.');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setError(`Failed to resend code: ${msg}`);
     } finally {
       setResending(false);
     }

@@ -87,7 +87,7 @@ export const claudeClient: LLMClient = {
             : undefined,
         };
       } catch (err: any) {
-        console.error(`[Claude] generate attempt ${attempt} failed:`, err?.message ?? err);
+        console.warn(`[Claude] generate attempt ${attempt} failed:`, err?.message ?? err);
         lastError = err;
         if (err?.name === 'AbortError') throw err;
         if (attempt < MAX_RETRIES) {
@@ -188,7 +188,7 @@ export const claudeClient: LLMClient = {
 
         return { text: fullText, model, finishReason };
       } catch (err: any) {
-        console.error(`[Claude] stream attempt ${attempt} failed:`, err?.message ?? err);
+        console.warn(`[Claude] stream attempt ${attempt} failed:`, err?.message ?? err);
         lastError = err;
         if (err?.name === 'AbortError') throw err;
         if (attempt < MAX_RETRIES) {

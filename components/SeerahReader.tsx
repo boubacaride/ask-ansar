@@ -617,30 +617,6 @@ export function SeerahReader({ visible, onClose, darkMode }: SeerahReaderProps) 
                   showsVerticalScrollIndicator={false}
                 >
                   <TouchableOpacity
-                    style={[styles.inAppAtlasButton, { backgroundColor: colors.primary }]}
-                    onPress={() => {
-                      setShowLanguageModal(false);
-                      setShowInAppAtlas(true);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.inAppAtlasContent}>
-                      <View style={styles.inAppAtlasIconContainer}>
-                        <FontAwesome5 name="mobile-alt" size={24} color="#ffffff" />
-                      </View>
-                      <View style={styles.inAppAtlasTextContainer}>
-                        <Text style={styles.inAppAtlasTitle}>
-                          View In-App Atlas
-                        </Text>
-                        <Text style={styles.inAppAtlasDescription}>
-                          Interactive timeline with events & locations
-                        </Text>
-                      </View>
-                      <FontAwesome5 name="chevron-right" size={20} color="#ffffff" />
-                    </View>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
                     style={[styles.inAppAtlasButton, { backgroundColor: colors.accent }]}
                     onPress={() => {
                       setShowLanguageModal(false);

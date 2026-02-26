@@ -3,6 +3,8 @@ import { useEffect, useRef, memo } from 'react';
 import { Copy, Share, Sparkles } from 'lucide-react-native';
 import { FR } from '@/ui/strings.fr';
 import FormattedText from './FormattedText';
+import SourceBadges from './SourceBadges';
+import type { SourceBadge } from '@/types/chat';
 
 interface MessageBubbleProps {
   message: {
@@ -10,6 +12,7 @@ interface MessageBubbleProps {
     text: string;
     isUser: boolean;
     arabicText?: string;
+    sources?: SourceBadge[];
   };
   darkMode: boolean;
   copiedMessageId: string | null;
@@ -88,6 +91,10 @@ function MessageBubbleInner({
             </View>
           )}
 
+          {message.sources && message.sources.length > 0 && !isStreaming && (
+            <SourceBadges sources={message.sources} darkMode={darkMode} />
+          )}
+
           {/* Hide action buttons while streaming */}
           {!isStreaming && (
             <View style={styles.messageActions}>
@@ -121,6 +128,7 @@ export default memo(MessageBubbleInner, (prev, next) => {
   return (
     prev.message.id === next.message.id &&
     prev.message.text === next.message.text &&
+    prev.message.sources === next.message.sources &&
     prev.darkMode === next.darkMode &&
     prev.copiedMessageId === next.copiedMessageId &&
     prev.isStreaming === next.isStreaming

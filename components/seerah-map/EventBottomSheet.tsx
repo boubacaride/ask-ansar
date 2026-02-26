@@ -220,7 +220,7 @@ export const EventBottomSheet: React.FC<EventBottomSheetProps> = ({
   );
 
   const renderMidContent = () => (
-    <View style={styles.midContent}>
+    <ScrollView style={styles.midContent} showsVerticalScrollIndicator={false} bounces={false}>
       <View style={styles.handle} />
 
       {/* Stacked events carousel */}
@@ -364,7 +364,8 @@ export const EventBottomSheet: React.FC<EventBottomSheetProps> = ({
           <FontAwesome5 name="arrow-right" size={14} color="rgba(255,255,255,0.7)" />
         </TouchableOpacity>
       </View>
-    </View>
+      <View style={{ height: 20 }} />
+    </ScrollView>
   );
 
   const renderExpandedContent = () => (

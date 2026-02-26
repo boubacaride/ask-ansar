@@ -16,6 +16,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useSettings } from '@/store/settingsStore';
 import {
   getCollectionMetadata,
+  getCollectionBooks,
   getBookHadiths,
   TranslatedHadith,
   HadithBook,
@@ -38,6 +39,7 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
   const [viewMode, setViewMode] = useState<ViewMode>('books');
   const [collectionId, setCollectionId] = useState<string>('');
   const [metadata, setMetadata] = useState<CollectionMetadata | null>(null);
+  const [books, setBooks] = useState<HadithBook[]>([]);
   const [selectedBook, setSelectedBook] = useState<number | null>(null);
   const [hadiths, setHadiths] = useState<TranslatedHadith[]>([]);
   const [showArabic, setShowArabic] = useState(true);
@@ -66,6 +68,7 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
       setViewMode('books');
       setSelectedBook(null);
       setHadiths([]);
+      setBooks([]);
       loadMetadata(extractedCollectionId);
     }
   }, [visible, url]);
@@ -80,8 +83,14 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
     setError(null);
     try {
       console.log('Loading metadata for collection:', collectionId);
-      const data = await getCollectionMetadata(collectionId);
-      console.log('Metadata loaded:', data);
+
+      // Load metadata and book list in parallel
+      const [data, bookList] = await Promise.all([
+        getCollectionMetadata(collectionId),
+        getCollectionBooks(collectionId),
+      ]);
+
+      console.log('Metadata loaded:', data, 'Books:', bookList.length);
 
       if (!data) {
         console.error('No metadata found for collection:', collectionId);
@@ -90,6 +99,7 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
       }
 
       setMetadata(data);
+      setBooks(bookList);
     } catch (err) {
       console.error('Error loading metadata:', err);
       setError('Erreur lors du chargement des métadonnées');
@@ -178,27 +188,22 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
   };
 
   const renderBooksView = () => {
-    console.log('[renderBooksView] Called with metadata:', metadata);
+    if (!metadata) return null;
 
-    if (!metadata) {
-      console.log('[renderBooksView] No metadata, returning null');
-      return null;
-    }
-
-    console.log('[renderBooksView] Generating books array for', metadata.totalBooks, 'books');
-
-    const books: HadithBook[] = Array.from({ length: metadata.totalBooks }, (_, i) => ({
-      bookNumber: i + 1,
-      bookTitle: `Book ${i + 1}`,
-      hadithCount: 0,
-    }));
+    const displayBooks = books.length > 0
+      ? books
+      : Array.from({ length: metadata.totalBooks }, (_, i) => ({
+          bookNumber: i + 1,
+          bookTitle: `Book ${i + 1}`,
+          hadithCount: 0,
+        }));
 
     return (
       <View style={styles.booksContainer}>
         <View style={[styles.statsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.statItem}>
             <FontAwesome5 name="book" size={20} color={colors.accent} />
-            <Text style={[styles.statNumber, { color: colors.text }]}>{metadata.totalBooks}</Text>
+            <Text style={[styles.statNumber, { color: colors.text }]}>{displayBooks.length}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Livres</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
@@ -212,10 +217,8 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Sélectionner un livre</Text>
 
         <FlatList
-          data={books}
+          data={displayBooks}
           keyExtractor={(item) => `book-${item.bookNumber}`}
-          numColumns={2}
-          columnWrapperStyle={styles.bookRow}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.bookCard, { backgroundColor: colors.card, borderColor: colors.border }]}
@@ -223,9 +226,21 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
               activeOpacity={0.7}
             >
               <View style={[styles.bookIconContainer, { backgroundColor: `${colors.primary}20` }]}>
-                <FontAwesome5 name="book-open" size={24} color={colors.primary} />
+                <FontAwesome5 name="book-open" size={20} color={colors.primary} />
               </View>
-              <Text style={[styles.bookNumber, { color: colors.accent }]}>Livre {item.bookNumber}</Text>
+              <View style={styles.bookTextContainer}>
+                <Text style={[styles.bookNumber, { color: colors.accent }]}>Livre {item.bookNumber}</Text>
+                {item.bookTitle !== `Book ${item.bookNumber}` && (
+                  <Text style={[styles.bookTitle, { color: colors.textSecondary }]} numberOfLines={2}>
+                    {item.bookTitle}
+                  </Text>
+                )}
+                {item.hadithCount > 0 && (
+                  <Text style={[styles.bookHadithCount, { color: colors.textSecondary }]}>
+                    {item.hadithCount} hadiths
+                  </Text>
+                )}
+              </View>
             </TouchableOpacity>
           )}
           contentContainerStyle={styles.booksListContent}
@@ -518,24 +533,35 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   bookCard: {
-    width: '48%',
-    padding: 20,
+    flexDirection: 'row',
+    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     gap: 12,
+    marginBottom: 10,
   },
   bookIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  bookTextContainer: {
+    flex: 1,
+  },
   bookNumber: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    textAlign: 'center',
+  },
+  bookTitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  bookHadithCount: {
+    fontSize: 12,
+    marginTop: 2,
   },
   languageToggle: {
     flexDirection: 'row',

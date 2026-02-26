@@ -36,4 +36,10 @@ export const FR = {
   errorAuthFailed:
     'Erreur d\'authentification API. Veuillez vérifier vos clés API dans le fichier .env',
   retry: 'Réessayer',
+
+  // Sources
+  sources: 'Sources',
+  fromCache: 'Réponse instantanée',
+  gradeSahih: 'Authentique',
+  gradeHasan: 'Bon',
 } as const;

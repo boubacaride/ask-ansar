@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Platform,
   TextInput,
+  AppState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -136,12 +137,42 @@ const SURAHS = [
   { number: 114, name: 'An-Nas', arabicName: 'الناس', verses: 6, type: 'Mecquoise' },
 ];
 
+// Friday = day 5 in JS (0=Sunday ... 5=Friday 6=Saturday)
+// URL-encoded to handle the space – works reliably on iOS WebView, Android WebView & web iframe
+const FRIDAY_PDF_URL = 'https://d6artovf3mfn.cloudfront.net/ansar_pdf/khass1brown-1%20(1).pdf';
+
+function isFriday(): boolean {
+  return new Date().getDay() === 5;
+}
+
 export default function QuranScreen() {
   const { darkMode } = useSettings();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewerVisible, setViewerVisible] = useState(false);
   const [selectedSurah, setSelectedSurah] = useState<{ number: number; name: string } | null>(null);
   const [mushafVisible, setMushafVisible] = useState(false);
+  const [friday, setFriday] = useState(isFriday());
+
+  // Re-check day when app returns to foreground (mobile) or tab regains focus (web)
+  // so the correct Mushaf is shown even if the user left the app open overnight
+  useEffect(() => {
+    const refresh = () => setFriday(isFriday());
+
+    if (Platform.OS === 'web') {
+      // Web: listen for tab visibility change
+      const onVisChange = () => {
+        if (document.visibilityState === 'visible') refresh();
+      };
+      document.addEventListener('visibilitychange', onVisChange);
+      return () => document.removeEventListener('visibilitychange', onVisChange);
+    } else {
+      // Native iOS / Android: listen for app coming to foreground
+      const sub = AppState.addEventListener('change', (state) => {
+        if (state === 'active') refresh();
+      });
+      return () => sub.remove();
+    }
+  }, []);
 
   // Background prefetch popular surahs for instant loading
   useEffect(() => {
@@ -317,10 +348,11 @@ export default function QuranScreen() {
         />
       )}
 
-      {/* Native Mushaf Reader — loads page images from CDN, no WebView needed */}
+      {/* Native Mushaf Reader — shows Friday edition on Fridays, regular Mushaf otherwise */}
       <MushafReader
         visible={mushafVisible}
         onClose={() => setMushafVisible(false)}
+        {...(friday ? { pdfUrl: FRIDAY_PDF_URL } : {})}
       />
     </View>
   );

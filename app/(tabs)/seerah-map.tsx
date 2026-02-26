@@ -174,8 +174,12 @@ export default function SeerahMapScreen() {
     });
   };
 
-  // Generate map HTML with all golden dots
-  const mapHTML = useMemo(() => {
+  // Generate map HTML ONCE - use ref to prevent WebView reloads on state changes
+  const mapHTMLRef = useRef<string>('');
+  const mapGeneratedRef = useRef(false);
+
+  if (sortedEvents.length > 0 && !mapGeneratedRef.current) {
+    mapGeneratedRef.current = true;
     const markers = sortedEvents.map((event, index) => {
       const category = event.category || 'life_event';
       const config = CATEGORY_CONFIGS[category] || CATEGORY_CONFIGS['life_event'];
@@ -195,7 +199,7 @@ export default function SeerahMapScreen() {
       };
     });
 
-    return `
+    mapHTMLRef.current = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -315,15 +319,16 @@ export default function SeerahMapScreen() {
             100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
           }
 
-          /* Modern Tooltip/Callout styles */
+          /* Modern Tooltip/Callout styles - compact for mobile */
           .tooltip {
             position: absolute;
             background: #ffffff;
-            border-radius: 24px;
+            border-radius: 16px;
             padding: 0;
-            min-width: 340px;
-            max-width: 400px;
-            box-shadow: 0 25px 80px rgba(0,0,0,0.3), 0 10px 30px rgba(0,0,0,0.15);
+            min-width: 260px;
+            max-width: calc(100vw - 32px);
+            width: 300px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.1);
             z-index: 1000;
             display: none;
             overflow: hidden;
@@ -331,26 +336,26 @@ export default function SeerahMapScreen() {
           }
           .tooltip.show {
             display: block;
-            animation: tooltipIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+            animation: tooltipIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
           }
           @keyframes tooltipIn {
-            from { opacity: 0; transform: translateY(-30px) scale(0.85); }
+            from { opacity: 0; transform: translateY(-20px) scale(0.9); }
             to { opacity: 1; transform: translateY(0) scale(1); }
           }
           .tooltip-arrow {
             position: absolute;
-            bottom: -14px;
+            bottom: -10px;
             left: 50%;
             transform: translateX(-50%);
             width: 0;
             height: 0;
-            border-left: 14px solid transparent;
-            border-right: 14px solid transparent;
-            border-top: 14px solid #ffffff;
-            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 10px solid #ffffff;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
           }
           .tooltip-header {
-            padding: 22px 26px 18px;
+            padding: 12px 14px;
             background: linear-gradient(135deg, #1e3a5f 0%, #0D5C63 50%, #0a4a50 100%);
             display: flex;
             align-items: center;
@@ -372,30 +377,29 @@ export default function SeerahMapScreen() {
             background: rgba(255,255,255,0.2);
             backdrop-filter: blur(10px);
             color: white;
-            padding: 10px 18px;
-            border-radius: 30px;
-            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 11px;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.5px;
             border: 1px solid rgba(255,255,255,0.25);
           }
           .tooltip-year {
             color: #fbbf24;
-            font-size: 26px;
+            font-size: 18px;
             font-weight: 800;
-            text-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            letter-spacing: -0.5px;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.3);
           }
           .tooltip-location {
-            padding: 18px 26px;
+            padding: 8px 14px;
             background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             color: #334155;
-            font-size: 17px;
+            font-size: 13px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
             border-bottom: 1px solid #e2e8f0;
           }
           .tooltip-location svg {
@@ -405,29 +409,29 @@ export default function SeerahMapScreen() {
           .tooltip-counter {
             margin-left: auto;
             color: #475569;
-            font-size: 15px;
+            font-size: 11px;
             font-weight: 700;
             background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-            padding: 8px 16px;
-            border-radius: 25px;
+            padding: 4px 10px;
+            border-radius: 20px;
             white-space: nowrap;
           }
           .tooltip-content {
-            padding: 22px 26px;
+            padding: 12px 14px;
             display: flex;
-            gap: 20px;
+            gap: 12px;
             background: #ffffff;
           }
           .tooltip-image {
-            width: 80px;
-            height: 80px;
-            border-radius: 18px;
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
             background: linear-gradient(135deg, #0D5C63 0%, #1e3a5f 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 36px;
-            box-shadow: 0 10px 25px rgba(13, 92, 99, 0.4);
+            font-size: 24px;
+            box-shadow: 0 4px 12px rgba(13, 92, 99, 0.3);
             flex-shrink: 0;
           }
           .tooltip-text {
@@ -435,55 +439,86 @@ export default function SeerahMapScreen() {
             display: flex;
             flex-direction: column;
             justify-content: center;
+            min-width: 0;
           }
           .tooltip-title {
             color: #0f172a;
-            font-size: 22px;
+            font-size: 15px;
             font-weight: 800;
-            margin-bottom: 10px;
+            margin-bottom: 4px;
             line-height: 1.3;
-            letter-spacing: -0.3px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
           }
           .tooltip-desc {
             color: #475569;
-            font-size: 16px;
-            line-height: 1.6;
+            font-size: 12px;
+            line-height: 1.5;
             display: -webkit-box;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
           }
           .tooltip-link {
-            padding: 18px 26px 22px;
+            padding: 10px 14px 12px;
             background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
           }
           .tooltip-link a {
             color: #ffffff;
             text-decoration: none;
-            font-size: 17px;
+            font-size: 13px;
             font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 12px;
+            gap: 8px;
             background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-            padding: 16px 28px;
-            border-radius: 16px;
+            padding: 10px 16px;
+            border-radius: 10px;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.45);
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
             text-transform: uppercase;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.5px;
           }
           .tooltip-link a:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(217, 119, 6, 0.55);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(217, 119, 6, 0.45);
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
           }
           .tooltip-link a:active {
             transform: translateY(-1px);
           }
+          .tooltip-quiz-btn {
+            width: 100%;
+            border: none;
+            font-size: 13px;
+            font-weight: 700;
+            color: #ffffff;
+            background: linear-gradient(135deg, #0D5C63 0%, #0a4a50 100%);
+            padding: 10px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(13, 92, 99, 0.25);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .tooltip-quiz-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
+          }
+          .tooltip-quiz-btn:active {
+            transform: translateY(-1px);
+          }
         </style>
-        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDEwtaEWWtkJb6zyIyRQdxPMjmcpasx0H8&libraries=marker"></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDEwtaEWWtkJb6zyIyRQdxPMjmcpasx0H8&callback=initMap" async defer></script>
       </head>
       <body>
         <div id="map"></div>
@@ -514,6 +549,11 @@ export default function SeerahMapScreen() {
                 <polyline points="9 18 15 12 9 6"></polyline>
               </svg>
             </a>
+            <button class="tooltip-quiz-btn" onclick="startQuiz()">
+              <span>❓</span>
+              <span>Testez vos connaissances</span>
+              <span>→</span>
+            </button>
           </div>
           <div class="tooltip-arrow"></div>
         </div>
@@ -548,6 +588,33 @@ export default function SeerahMapScreen() {
           let currentInfoWindow = null;
           const tooltip = document.getElementById('tooltip');
 
+          const camelMarkerUrl = 'https://d6artovf3mfn.cloudfront.net/images/Gemini_Generated_Image_8tspiy8tspiy8tsp-removebg-preview%20(1).png';
+
+          function makePinSvg(pinColor, darkColor, id) {
+            return '<svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="pG' + id + '" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:' + pinColor + ';stop-opacity:1" /><stop offset="100%" style="stop-color:' + darkColor + ';stop-opacity:1" /></linearGradient></defs><ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/><path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z" fill="url(#pG' + id + ')" stroke="#ffffff" stroke-width="2.5"/><circle cx="20" cy="15" r="6" fill="#ffffff"/></svg>';
+          }
+
+          function setPinIcon(markerObj, idx) {
+            const isVisited = markerObj.data.isVisited || markers[idx]?.isVisited;
+            const pinColor = isVisited ? '#22c55e' : '#c4a35a';
+            const darkColor = isVisited ? '#15803d' : '#8b7355';
+            markerObj.marker.setIcon({
+              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(makePinSvg(pinColor, darkColor, idx)),
+              scaledSize: new google.maps.Size(40, 48),
+              anchor: new google.maps.Point(20, 44),
+            });
+            markerObj.marker.setZIndex(idx);
+          }
+
+          function setCamelIcon(markerObj) {
+            markerObj.marker.setIcon({
+              url: camelMarkerUrl,
+              scaledSize: new google.maps.Size(120, 120),
+              anchor: new google.maps.Point(60, 105),
+            });
+            markerObj.marker.setZIndex(1000);
+          }
+
           function initMap() {
             map = new google.maps.Map(document.getElementById('map'), {
               center: { lat: 24.5, lng: 42.0 },
@@ -561,49 +628,25 @@ export default function SeerahMapScreen() {
               backgroundColor: '#f5f1e8',
             });
 
-            // Create pin markers with labels - normal pins by default, camel for active
+            // Create markers using legacy Marker API (compatible with all WebViews)
             markers.forEach((marker, idx) => {
-              const pinContainer = document.createElement('div');
-              pinContainer.className = 'pin-marker' + (marker.isVisited ? ' visited' : '');
-              pinContainer.dataset.index = idx;
-
-              // Create normal pin marker structure (golden for unvisited, green for visited)
               const pinColor = marker.isVisited ? '#22c55e' : '#c4a35a';
               const darkColor = marker.isVisited ? '#15803d' : '#8b7355';
-              pinContainer.innerHTML = \`
-                <div class="pulse-ring"></div>
-                <div class="pin-label">\${marker.location || marker.title}</div>
-                <div class="pin-icon">
-                  <svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <filter id="shadow\${idx}" x="-50%" y="-50%" width="200%" height="200%">
-                        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
-                      </filter>
-                      <linearGradient id="pinGrad\${idx}" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" style="stop-color:\${pinColor};stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:\${darkColor};stop-opacity:1" />
-                      </linearGradient>
-                    </defs>
-                    <ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/>
-                    <path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z"
-                          fill="url(#pinGrad\${idx})"
-                          stroke="#ffffff"
-                          stroke-width="2.5"
-                          filter="url(#shadow\${idx})"/>
-                    <circle cx="20" cy="15" r="6" fill="#ffffff"/>
-                  </svg>
-                </div>
-              \`;
 
-              const advancedMarker = new google.maps.marker.AdvancedMarkerElement({
-                map,
+              const gmMarker = new google.maps.Marker({
                 position: { lat: marker.lat, lng: marker.lng },
-                content: pinContainer,
+                map: map,
                 title: marker.title,
+                icon: {
+                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(makePinSvg(pinColor, darkColor, idx)),
+                  scaledSize: new google.maps.Size(40, 48),
+                  anchor: new google.maps.Point(20, 44),
+                },
+                animation: google.maps.Animation.DROP,
+                optimized: false,
               });
 
-              // Click handler
-              pinContainer.addEventListener('click', () => {
+              gmMarker.addListener('click', () => {
                 showTooltipForMarker(idx);
                 window.ReactNativeWebView?.postMessage(JSON.stringify({
                   type: 'markerClick',
@@ -612,7 +655,7 @@ export default function SeerahMapScreen() {
                 }));
               });
 
-              markerObjects.push({ marker: advancedMarker, element: pinContainer, data: marker });
+              markerObjects.push({ marker: gmMarker, data: marker });
             });
 
             window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'mapReady' }));
@@ -636,7 +679,6 @@ export default function SeerahMapScreen() {
             const markerObj = markerObjects[idx];
             if (!marker || !markerObj) return;
 
-            // Category icons for tooltip
             const categoryIcons = { sacred: '🕋', battle: '⚔️', revelation: '📖', migration: '🐪', life_event: '🌟' };
 
             // Update tooltip content
@@ -651,55 +693,24 @@ export default function SeerahMapScreen() {
             // Position tooltip centered horizontally at top of screen
             const mapDiv = document.getElementById('map');
             const mapWidth = mapDiv.offsetWidth;
-            const tooltipWidth = Math.min(320, mapWidth - 32); // responsive width
-
-            // Center tooltip horizontally with padding
+            const tooltipWidth = Math.min(300, mapWidth - 24);
             tooltip.style.width = tooltipWidth + 'px';
+            tooltip.style.minWidth = 'auto';
             tooltip.style.left = ((mapWidth - tooltipWidth) / 2) + 'px';
-            // Position at top with some padding (marker will be below after pan offset)
-            tooltip.style.top = '16px';
-
-            // Show tooltip with animation
+            tooltip.style.top = '12px';
             tooltip.classList.add('show');
 
-            // Update active marker styling and icon
+            // Restore previous marker to pin icon
             if (activeMarkerIndex >= 0 && markerObjects[activeMarkerIndex]) {
-              const prevElement = markerObjects[activeMarkerIndex].element;
-              prevElement.classList.remove('active');
-              // Restore previous marker to pin icon
-              const prevData = markerObjects[activeMarkerIndex].data;
-              const prevPinColor = prevData.isVisited ? '#22c55e' : '#c4a35a';
-              const prevDarkColor = prevData.isVisited ? '#15803d' : '#8b7355';
-              const iconContainer = prevElement.querySelector('.pin-icon') || prevElement.querySelector('.camel-icon');
-              if (iconContainer) {
-                iconContainer.className = 'pin-icon';
-                iconContainer.innerHTML = \`
-                  <svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                      <linearGradient id="pinGradPrev" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" style="stop-color:\${prevPinColor};stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:\${prevDarkColor};stop-opacity:1" />
-                      </linearGradient>
-                    </defs>
-                    <ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/>
-                    <path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z"
-                          fill="url(#pinGradPrev)" stroke="#ffffff" stroke-width="2.5"/>
-                    <circle cx="20" cy="15" r="6" fill="#ffffff"/>
-                  </svg>
-                \`;
-              }
+              setPinIcon(markerObjects[activeMarkerIndex], activeMarkerIndex);
             }
 
             activeMarkerIndex = idx;
-            markerObj.element.classList.add('active');
-            markerObj.element.classList.add('visited');
 
-            // Replace active marker with camel image (larger size, transparent background)
-            const activeIconContainer = markerObj.element.querySelector('.pin-icon') || markerObj.element.querySelector('.camel-icon');
-            if (activeIconContainer) {
-              activeIconContainer.className = 'camel-icon';
-              activeIconContainer.innerHTML = \`<img src="https://d6artovf3mfn.cloudfront.net/images/Gemini_Generated_Image_8tspiy8tspiy8tsp-removebg-preview%20(1).png" width="120" height="120" style="filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.35));" />\`;
-            }
+            // Set active marker to camel icon with bounce
+            setCamelIcon(markerObj);
+            markerObj.marker.setAnimation(google.maps.Animation.BOUNCE);
+            setTimeout(() => markerObj.marker.setAnimation(null), 1400);
           }
 
           function hideTooltip() {
@@ -789,26 +800,21 @@ export default function SeerahMapScreen() {
           function panToEvent(lat, lng, index) {
             const idx = index - 1;
 
-            // Update active marker styling first
+            // Restore previous marker to pin
             if (activeMarkerIndex >= 0 && markerObjects[activeMarkerIndex]) {
-              markerObjects[activeMarkerIndex].element.classList.remove('active');
+              setPinIcon(markerObjects[activeMarkerIndex], activeMarkerIndex);
             }
             activeMarkerIndex = idx;
-            if (markerObjects[idx]) {
-              markerObjects[idx].element.classList.add('active');
-              markerObjects[idx].element.classList.add('visited');
-            }
 
-            // Calculate offset for tooltip positioning
+            // Calculate offset so marker appears BELOW the tooltip
             const mapDiv = document.getElementById('map');
             const mapHeight = mapDiv.offsetHeight;
-            const offsetPixels = mapHeight * 0.25;
+            const offsetPixels = mapHeight * 0.3;
 
             // Animate camera smoothly
             animateCamera(lat, lng, () => {
-              // After animation, offset for tooltip and show it
               setTimeout(() => {
-                map.panBy(0, offsetPixels);
+                map.panBy(0, -offsetPixels);
                 setTimeout(() => {
                   if (idx >= 0 && idx < markers.length) {
                     showTooltipForMarker(idx);
@@ -825,6 +831,24 @@ export default function SeerahMapScreen() {
             }));
           }
 
+          function startQuiz() {
+            window.ReactNativeWebView?.postMessage(JSON.stringify({
+              type: 'startQuiz',
+              eventIndex: activeMarkerIndex,
+            }));
+          }
+
+          function updateVisitedMarkers(visitedIds) {
+            markers.forEach((m, i) => {
+              m.isVisited = visitedIds.includes(m.id);
+            });
+            markerObjects.forEach((obj, i) => {
+              if (i === activeMarkerIndex) return;
+              obj.data.isVisited = markers[i]?.isVisited;
+              setPinIcon(obj, i);
+            });
+          }
+
           function zoomIn() {
             map.setZoom(map.getZoom() + 1);
           }
@@ -833,20 +857,13 @@ export default function SeerahMapScreen() {
             map.setZoom(map.getZoom() - 1);
           }
 
-          // Update tooltip position on map move
-          map?.addListener?.('center_changed', () => {
-            if (activeMarkerIndex >= 0 && tooltip.classList.contains('show')) {
-              showTooltipForMarker(activeMarkerIndex);
-            }
-          });
-
           window.initMap = initMap;
-          google.maps.event.addDomListener(window, 'load', initMap);
         </script>
       </body>
       </html>
     `;
-  }, [sortedEvents, visitedEventIds]);
+  }
+  const mapHTML = mapHTMLRef.current;
 
   // Web map HTML for iframe
   const webMapHTML = useMemo(() => {
@@ -911,19 +928,19 @@ export default function SeerahMapScreen() {
             border-right: 1px solid #e2e8f0;
           }
 
-          /* Modern Custom Info Window Styles */
+          /* Modern Custom Info Window Styles - compact for mobile */
           .custom-info-window {
             background: #ffffff;
-            border-radius: 20px;
-            min-width: 320px;
-            max-width: 380px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.25), 0 8px 20px rgba(0,0,0,0.1);
+            border-radius: 14px;
+            min-width: 240px;
+            max-width: 300px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2), 0 4px 10px rgba(0,0,0,0.08);
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             border: none;
           }
           .info-header {
-            padding: 20px 24px 16px;
+            padding: 10px 14px;
             background: linear-gradient(135deg, #1e3a5f 0%, #0D5C63 50%, #0a4a50 100%);
             position: relative;
             overflow: hidden;
@@ -942,65 +959,65 @@ export default function SeerahMapScreen() {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 12px;
+            margin-bottom: 0;
           }
           .info-category {
             background: rgba(255,255,255,0.2);
             backdrop-filter: blur(10px);
             color: white;
-            padding: 8px 16px;
-            border-radius: 25px;
-            font-size: 14px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             border: 1px solid rgba(255,255,255,0.2);
           }
           .info-year {
             color: #fbbf24;
-            font-size: 22px;
+            font-size: 16px;
             font-weight: 800;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
           }
           .info-location {
-            padding: 16px 24px;
+            padding: 8px 14px;
             background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             color: #334155;
-            font-size: 16px;
+            font-size: 12px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
             border-bottom: 1px solid #e2e8f0;
           }
           .info-location-icon {
-            font-size: 18px;
+            font-size: 14px;
           }
           .info-counter {
             margin-left: auto;
             color: #64748b;
-            font-size: 14px;
+            font-size: 10px;
             font-weight: 700;
             background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-            padding: 6px 14px;
-            border-radius: 20px;
+            padding: 3px 8px;
+            border-radius: 12px;
           }
           .info-content {
-            padding: 20px 24px;
+            padding: 10px 14px;
             display: flex;
-            gap: 18px;
+            gap: 10px;
             background: #ffffff;
           }
           .info-icon {
-            width: 72px;
-            height: 72px;
-            border-radius: 16px;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
             background: linear-gradient(135deg, #0D5C63 0%, #1e3a5f 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 32px;
-            box-shadow: 0 8px 20px rgba(13, 92, 99, 0.35);
+            font-size: 22px;
+            box-shadow: 0 4px 10px rgba(13, 92, 99, 0.3);
             flex-shrink: 0;
           }
           .info-text {
@@ -1008,51 +1025,55 @@ export default function SeerahMapScreen() {
             display: flex;
             flex-direction: column;
             justify-content: center;
+            min-width: 0;
           }
           .info-title {
             color: #0f172a;
-            font-size: 20px;
+            font-size: 14px;
             font-weight: 800;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
             line-height: 1.3;
-            letter-spacing: -0.3px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
           }
           .info-desc {
             color: #475569;
-            font-size: 15px;
-            line-height: 1.6;
+            font-size: 12px;
+            line-height: 1.5;
             display: -webkit-box;
-            -webkit-line-clamp: 3;
+            -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
           }
           .info-footer {
-            padding: 16px 24px 20px;
+            padding: 8px 14px 10px;
             background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
           }
           .info-btn {
             width: 100%;
             text-decoration: none;
-            font-size: 16px;
+            font-size: 13px;
             font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
             color: #ffffff;
-            padding: 14px 24px;
-            border-radius: 14px;
+            padding: 10px 16px;
+            border-radius: 10px;
             border: none;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.4);
+            box-shadow: 0 3px 10px rgba(217, 119, 6, 0.35);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
           }
           .info-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(217, 119, 6, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 16px rgba(217, 119, 6, 0.45);
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
           }
           .info-btn:active {
@@ -1061,25 +1082,25 @@ export default function SeerahMapScreen() {
           .info-quiz-btn {
             width: 100%;
             text-decoration: none;
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 700;
             color: #ffffff;
             background: linear-gradient(135deg, #0D5C63 0%, #0a4a50 100%);
             border: none;
-            border-radius: 14px;
-            padding: 12px 20px;
+            border-radius: 10px;
+            padding: 8px 14px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            margin-top: 8px;
+            gap: 6px;
+            margin-top: 6px;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(13, 92, 99, 0.3);
+            box-shadow: 0 3px 10px rgba(13, 92, 99, 0.25);
           }
           .info-quiz-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(13, 92, 99, 0.4);
+            box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
           }
 
           /* Hide default Google info window styling */
@@ -1269,7 +1290,7 @@ export default function SeerahMapScreen() {
 
               const infoWindow = new google.maps.InfoWindow({
                 content: infoContent,
-                maxWidth: 400,
+                maxWidth: 320,
               });
 
               marker.addListener('click', () => {
@@ -1578,18 +1599,24 @@ export default function SeerahMapScreen() {
     }
   }, [sortedEvents, selectEvent, markEventVisited, popupAnim]);
 
-  // Send visited state updates to iframe without reloading it
+  // Send visited state updates without reloading the map
   useEffect(() => {
-    if (Platform.OS === 'web' && visitedEventIds.length > 0) {
-      const iframe = document.querySelector('iframe');
-      if (iframe && iframe.contentWindow) {
-        iframe.contentWindow.postMessage({
-          type: 'updateVisited',
-          visitedIds: visitedEventIds,
-        }, '*');
+    if (visitedEventIds.length > 0) {
+      if (Platform.OS === 'web') {
+        const iframe = document.querySelector('iframe');
+        if (iframe && iframe.contentWindow) {
+          iframe.contentWindow.postMessage({
+            type: 'updateVisited',
+            visitedIds: visitedEventIds,
+          }, '*');
+        }
+      } else if (webViewRef.current && mapReady) {
+        webViewRef.current.injectJavaScript(
+          `if(typeof updateVisitedMarkers==='function'){updateVisitedMarkers(${JSON.stringify(visitedEventIds)});}true;`
+        );
       }
     }
-  }, [visitedEventIds]);
+  }, [visitedEventIds, mapReady]);
 
   // Text-to-speech for event
   const speakEvent = (event: SeerahEventWithMeta) => {
@@ -1714,6 +1741,11 @@ export default function SeerahMapScreen() {
             onMessage={handleWebViewMessage}
             javaScriptEnabled
             domStorageEnabled
+            allowsInlineMediaPlayback
+            mixedContentMode="always"
+            originWhitelist={['*']}
+            allowFileAccess
+            allowUniversalAccessFromFileURLs
             startInLoadingState
             renderLoading={() => (
               <View style={[styles.mapLoading, { backgroundColor: colors.background }]}>

@@ -2,12 +2,12 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WELCOME_MESSAGE } from '@/app/api/chat';
-import { ChatMessage } from '@/types/chat';
+import { ChatMessage, SourceBadge } from '@/types/chat';
 
 interface ChatStore {
   messages: ChatMessage[];
   addMessage: (message: ChatMessage) => void;
-  updateMessage: (id: string, text: string, arabicText?: string, translation?: string) => void;
+  updateMessage: (id: string, text: string, arabicText?: string, translation?: string, sources?: SourceBadge[]) => void;
   clearMessages: () => void;
 }
 
@@ -29,11 +29,11 @@ export const useChatStore = create(
         set((state) => ({
           messages: [...state.messages, message],
         })),
-      updateMessage: (id, text, arabicText, translation) =>
+      updateMessage: (id, text, arabicText, translation, sources) =>
         set((state) => ({
           messages: state.messages.map((m) =>
             m.id === id
-              ? { ...m, text, ...(arabicText !== undefined && { arabicText }), ...(translation !== undefined && { translation }) }
+              ? { ...m, text, ...(arabicText !== undefined && { arabicText }), ...(translation !== undefined && { translation }), ...(sources !== undefined && { sources }) }
               : m
           ),
         })),

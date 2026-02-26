@@ -1,11 +1,17 @@
 /**
  * OpenAI LLM client implementation with streaming support.
+ *
+ * Uses manual fetch + SSE parsing for streaming instead of the OpenAI SDK,
+ * because the SDK's streaming relies on browser ReadableStream which doesn't
+ * work properly in React Native (causes "Attempted to iterate over a response
+ * with no body" error).
  */
-import OpenAI from 'openai';
 import type { LLMClient, LLMRequestOptions, LLMResponse, LLMStreamRequestOptions } from './types';
 
 const MAX_RETRIES = 1;
 const RETRY_DELAY_MS = 800;
+const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
+const MODEL = 'gpt-4o-mini';
 
 /** Check the key looks like a real OpenAI key (not a placeholder). */
 function isValidKey(key: string | undefined): boolean {
@@ -16,27 +22,55 @@ function isValidKey(key: string | undefined): boolean {
   return key.startsWith('sk-');
 }
 
-function createClient(): OpenAI | null {
-  const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-  if (!isValidKey(apiKey)) return null;
-  return new OpenAI({ apiKey, dangerouslyAllowBrowser: true });
+function getApiKey(): string | undefined {
+  return process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 }
-
-const client = createClient();
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Parse a complete SSE text response (fallback when ReadableStream is not available). */
+function parseSSEText(text: string, options: LLMStreamRequestOptions): LLMResponse {
+  let fullText = '';
+  let model = MODEL;
+  let finishReason: string | null = null;
+
+  const lines = text.split('\n');
+  for (const line of lines) {
+    if (!line.startsWith('data: ')) continue;
+    const jsonStr = line.slice(6).trim();
+    if (!jsonStr || jsonStr === '[DONE]') continue;
+
+    try {
+      const event = JSON.parse(jsonStr);
+      const delta = event.choices?.[0]?.delta?.content;
+      if (delta) {
+        fullText += delta;
+        options.onToken(delta);
+      }
+      if (event.model) model = event.model;
+      if (event.choices?.[0]?.finish_reason) {
+        finishReason = event.choices[0].finish_reason;
+      }
+    } catch {
+      // Skip malformed JSON
+    }
+  }
+
+  return { text: fullText, model, finishReason };
 }
 
 export const openaiClient: LLMClient = {
   name: 'openai',
 
   isAvailable(): boolean {
-    return client !== null;
+    return isValidKey(getApiKey());
   },
 
   async generate(options: LLMRequestOptions): Promise<LLMResponse> {
-    if (!client) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
       throw new Error('OpenAI client not configured: missing EXPO_PUBLIC_OPENAI_API_KEY');
     }
 
@@ -48,31 +82,46 @@ export const openaiClient: LLMClient = {
           throw new DOMException('Aborted', 'AbortError');
         }
 
-        const completion = await client.chat.completions.create({
-          model: 'gpt-5.2',
-          messages: [
-            { role: 'system', content: options.systemPrompt },
-            { role: 'user', content: options.userPrompt },
-          ],
-          temperature: options.temperature ?? 0.4,
-          max_completion_tokens: options.maxTokens ?? 4096,
+        const response = await fetch(OPENAI_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            messages: [
+              { role: 'system', content: options.systemPrompt },
+              { role: 'user', content: options.userPrompt },
+            ],
+            temperature: options.temperature ?? 0.4,
+            max_tokens: options.maxTokens ?? 4096,
+          }),
+          signal: options.signal,
         });
 
-        const choice = completion.choices[0];
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => '');
+          throw new Error(`OpenAI API error ${response.status}: ${errorBody}`);
+        }
+
+        const data = await response.json();
+        const choice = data.choices?.[0];
+
         return {
-          text: choice.message.content ?? '',
-          model: completion.model,
-          finishReason: choice.finish_reason,
-          usage: completion.usage
+          text: choice?.message?.content ?? '',
+          model: data.model ?? MODEL,
+          finishReason: choice?.finish_reason ?? null,
+          usage: data.usage
             ? {
-                promptTokens: completion.usage.prompt_tokens,
-                completionTokens: completion.usage.completion_tokens,
-                totalTokens: completion.usage.total_tokens,
+                promptTokens: data.usage.prompt_tokens,
+                completionTokens: data.usage.completion_tokens,
+                totalTokens: data.usage.total_tokens,
               }
             : undefined,
         };
       } catch (err: any) {
-        console.error(`[OpenAI] generate attempt ${attempt} failed:`, err?.message ?? err);
+        console.warn(`[OpenAI] generate attempt ${attempt} failed:`, err?.message ?? err);
         lastError = err;
         if (err?.name === 'AbortError') throw err;
         if (attempt < MAX_RETRIES) {
@@ -84,8 +133,13 @@ export const openaiClient: LLMClient = {
     throw lastError;
   },
 
+  /**
+   * Streaming via manual fetch + SSE parsing.
+   * This avoids the OpenAI SDK's streaming which doesn't work on React Native.
+   */
   async generateStream(options: LLMStreamRequestOptions): Promise<LLMResponse> {
-    if (!client) {
+    const apiKey = getApiKey();
+    if (!apiKey) {
       throw new Error('OpenAI client not configured: missing EXPO_PUBLIC_OPENAI_API_KEY');
     }
 
@@ -97,43 +151,82 @@ export const openaiClient: LLMClient = {
           throw new DOMException('Aborted', 'AbortError');
         }
 
-        const stream = await client.chat.completions.create({
-          model: 'gpt-5.2',
-          messages: [
-            { role: 'system', content: options.systemPrompt },
-            { role: 'user', content: options.userPrompt },
-          ],
-          temperature: options.temperature ?? 0.4,
-          max_completion_tokens: options.maxTokens ?? 4096,
-          stream: true,
+        const response = await fetch(OPENAI_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: MODEL,
+            messages: [
+              { role: 'system', content: options.systemPrompt },
+              { role: 'user', content: options.userPrompt },
+            ],
+            temperature: options.temperature ?? 0.4,
+            max_tokens: options.maxTokens ?? 4096,
+            stream: true,
+          }),
+          signal: options.signal,
         });
 
-        let fullText = '';
-        let model = 'gpt-5.2';
-        let finishReason: string | null = null;
+        if (!response.ok) {
+          const errorBody = await response.text().catch(() => '');
+          throw new Error(`OpenAI API error ${response.status}: ${errorBody}`);
+        }
 
-        for await (const chunk of stream) {
+        // Try to get a stream reader. If not available (some React Native versions),
+        // fall back to reading the entire response as text and parsing SSE lines.
+        const reader = response.body?.getReader();
+        if (!reader) {
+          const text = await response.text();
+          return parseSSEText(text, options);
+        }
+
+        const decoder = new TextDecoder();
+        let fullText = '';
+        let model = MODEL;
+        let finishReason: string | null = null;
+        let buffer = '';
+
+        while (true) {
           if (options.signal?.aborted) {
+            reader.cancel();
             throw new DOMException('Aborted', 'AbortError');
           }
-          const delta = chunk.choices[0]?.delta?.content;
-          if (delta) {
-            fullText += delta;
-            options.onToken(delta);
-          }
-          if (chunk.model) model = chunk.model;
-          if (chunk.choices[0]?.finish_reason) {
-            finishReason = chunk.choices[0].finish_reason;
+
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === '[DONE]') continue;
+
+            try {
+              const event = JSON.parse(jsonStr);
+              const delta = event.choices?.[0]?.delta?.content;
+              if (delta) {
+                fullText += delta;
+                options.onToken(delta);
+              }
+              if (event.model) model = event.model;
+              if (event.choices?.[0]?.finish_reason) {
+                finishReason = event.choices[0].finish_reason;
+              }
+            } catch {
+              // Skip malformed JSON lines
+            }
           }
         }
 
-        return {
-          text: fullText,
-          model,
-          finishReason,
-        };
+        return { text: fullText, model, finishReason };
       } catch (err: any) {
-        console.error(`[OpenAI] stream attempt ${attempt} failed:`, err?.message ?? err);
+        console.warn(`[OpenAI] stream attempt ${attempt} failed:`, err?.message ?? err);
         lastError = err;
         if (err?.name === 'AbortError') throw err;
         if (attempt < MAX_RETRIES) {

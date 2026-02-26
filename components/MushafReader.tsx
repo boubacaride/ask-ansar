@@ -1,29 +1,25 @@
-import React, { useState, useRef, useCallback, useEffect, memo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
-  Image,
   TouchableOpacity,
   Modal,
   TextInput,
   ActivityIndicator,
   Platform,
   SafeAreaView,
-  useWindowDimensions,
   ScrollView,
+  Share as RNShare,
+  useWindowDimensions,
+  Linking,
+  Alert,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '@/store/settingsStore';
-
-const TOTAL_PAGES = 604;
-
-// Fast CDN serving Quran page images (Madina Mushaf, high quality PNGs)
-const getPageImageUrl = (pageNumber: number): string => {
-  const padded = String(pageNumber).padStart(3, '0');
-  return `https://cdn.jsdelivr.net/gh/GovarJabbar/Quran-PNG@master/${padded}.png`;
-};
+import { generateFlipbookHtml } from './mushafFlipbookHtml';
+import ShareModal from './ShareModal';
 
 // ─── Surah-to-page mapping (Madina Mushaf, standard 604-page layout) ─────
 
@@ -151,53 +147,12 @@ const SURAH_PAGES: SurahInfo[] = [
   { number: 114, name: 'An-Nas', arabicName: 'الناس', startPage: 604 },
 ];
 
-/** Find which surah is displayed on a given page number */
 function getSurahForPage(page: number): SurahInfo {
   for (let i = SURAH_PAGES.length - 1; i >= 0; i--) {
-    if (page >= SURAH_PAGES[i].startPage) {
-      return SURAH_PAGES[i];
-    }
+    if (page >= SURAH_PAGES[i].startPage) return SURAH_PAGES[i];
   }
   return SURAH_PAGES[0];
 }
-
-// ─── Page Component (memoized for FlatList performance) ──────────────
-
-const QuranPage = memo(({ pageNumber, width, height }: { pageNumber: number; width: number; height: number }) => {
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(false);
-
-  return (
-    <View style={[styles.pageContainer, { width, height }]}>
-      {/* Loading spinner behind image */}
-      {!loaded && !error && (
-        <View style={styles.pageLoading}>
-          <ActivityIndicator size="large" color="#00897b" />
-          <Text style={styles.pageLoadingText}>Page {pageNumber}</Text>
-        </View>
-      )}
-
-      {/* Error state */}
-      {error && (
-        <View style={styles.pageLoading}>
-          <Ionicons name="image-outline" size={48} color="#ccc" />
-          <Text style={styles.pageErrorText}>Impossible de charger la page {pageNumber}</Text>
-        </View>
-      )}
-
-      {/* The actual Quran page image */}
-      {!error && (
-        <Image
-          source={{ uri: getPageImageUrl(pageNumber) }}
-          style={[styles.pageImage, { width, height }]}
-          resizeMode="contain"
-          onLoad={() => setLoaded(true)}
-          onError={() => setError(true)}
-        />
-      )}
-    </View>
-  );
-});
 
 // ─── Main MushafReader Component ─────────────────────────────────────
 
@@ -205,266 +160,227 @@ interface MushafReaderProps {
   visible: boolean;
   onClose: () => void;
   initialPage?: number;
+  pdfUrl?: string;
 }
 
-export function MushafReader({ visible, onClose, initialPage = 1 }: MushafReaderProps) {
+export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl }: MushafReaderProps) {
   const { darkMode } = useSettings();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [currentPage, setCurrentPage] = useState(initialPage);
-  const [showSurahPicker, setShowSurahPicker] = useState(false);
-  const [showPageInput, setShowPageInput] = useState(false);
-  const [pageInputValue, setPageInputValue] = useState('');
-  const [surahSearch, setSurahSearch] = useState('');
-  const flatListRef = useRef<FlatList>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const webViewRef = useRef<any>(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [shareText, setShareText] = useState('');
 
-  // Page data (1 through 604)
-  const pages = useRef(Array.from({ length: TOTAL_PAGES }, (_, i) => i + 1)).current;
-
-  // Compute available height for page images (minus header + footer)
-  const headerHeight = Platform.OS === 'ios' ? 94 : 64;
-  const footerHeight = 56;
-  const pageHeight = screenHeight - headerHeight - footerHeight;
+  // Generate HTML content
+  const htmlContent = useMemo(
+    () => generateFlipbookHtml(SURAH_PAGES, darkMode, initialPage, pdfUrl),
+    [darkMode, initialPage, pdfUrl]
+  );
 
   const currentSurah = getSurahForPage(currentPage);
 
-  const colors = {
-    headerBg: darkMode ? '#1a1a2e' : '#00897b',
-    footerBg: darkMode ? '#1a1a2e' : '#ffffff',
-    footerBorder: darkMode ? '#2d2d44' : '#e0e0e0',
-    text: darkMode ? '#ffffff' : '#1a1a2e',
-    textSecondary: darkMode ? '#a0a0b0' : '#6c757d',
-    background: darkMode ? '#0a0a0a' : '#f5f0e8',
-    primary: '#00897b',
-    card: darkMode ? '#1e1e2d' : '#ffffff',
-    cardBorder: darkMode ? '#2d2d44' : '#e0e0e0',
-  };
+  // Handle messages from WebView/iframe
+  const handleMessage = useCallback((event: any) => {
+    try {
+      const data = typeof event === 'string'
+        ? JSON.parse(event)
+        : typeof event?.nativeEvent?.data === 'string'
+          ? JSON.parse(event.nativeEvent.data)
+          : typeof event?.data === 'string'
+            ? JSON.parse(event.data)
+            : event?.data;
 
-  // Reset to initial page when modal opens
+      if (!data?.type) return;
+
+      switch (data.type) {
+        case 'pageChange':
+          setCurrentPage(data.page);
+          break;
+        case 'share':
+          handleShare(data.page, data.surah, data.text);
+          break;
+        case 'showShareModal':
+          setShareText(data.text || `Le Saint Coran - Page ${data.page}`);
+          setShareModalVisible(true);
+          break;
+        case 'copy':
+          handleCopy(data.text);
+          break;
+        case 'download':
+          handleDownload(data.url);
+          break;
+        case 'pdfLoaded':
+          // PDF successfully loaded
+          break;
+      }
+    } catch (e) {
+      // Ignore parse errors
+    }
+  }, []);
+
+  // Listen for iframe messages on web
+  useEffect(() => {
+    if (Platform.OS === 'web' && visible) {
+      const listener = (e: MessageEvent) => handleMessage(e);
+      window.addEventListener('message', listener);
+      return () => window.removeEventListener('message', listener);
+    }
+  }, [visible, handleMessage]);
+
+  // Send page jump command to WebView/iframe
+  const sendMessage = useCallback((msg: object) => {
+    const json = JSON.stringify(msg);
+    if (Platform.OS === 'web') {
+      iframeRef.current?.contentWindow?.postMessage(json, '*');
+    } else {
+      webViewRef.current?.injectJavaScript(`
+        window.postMessage(${JSON.stringify(json)}, '*');
+        true;
+      `);
+    }
+  }, []);
+
+  // Update dark mode in WebView when it changes
   useEffect(() => {
     if (visible) {
-      const page = initialPage || 1;
-      setCurrentPage(page);
-      // Delay scroll to let FlatList mount
-      setTimeout(() => {
-        flatListRef.current?.scrollToIndex({ index: page - 1, animated: false });
-      }, 100);
+      sendMessage({ type: 'setDarkMode', dark: darkMode });
     }
-  }, [visible, initialPage]);
+  }, [darkMode, visible, sendMessage]);
 
-  // Prefetch adjacent pages for smoother scrolling
-  useEffect(() => {
-    if (!visible) return;
-    const pagesToPrefetch = [currentPage - 2, currentPage - 1, currentPage + 1, currentPage + 2]
-      .filter((p) => p >= 1 && p <= TOTAL_PAGES);
-    pagesToPrefetch.forEach((p) => {
-      Image.prefetch(getPageImageUrl(p)).catch(() => {});
-    });
-  }, [currentPage, visible]);
+  const handleShare = async (page: number, surah: any, text?: string) => {
+    const surahInfo = surah || getSurahForPage(page);
+    const shareText = text || `Le Saint Coran - ${surahInfo.arabicName} (${surahInfo.name}) - Page ${page}`;
 
-  const getItemLayout = useCallback(
-    (_: any, index: number) => ({
-      length: screenWidth,
-      offset: screenWidth * index,
-      index,
-    }),
-    [screenWidth]
-  );
-
-  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) {
-      setCurrentPage(viewableItems[0].item);
+    if (Platform.OS === 'web') {
+      try {
+        await navigator.clipboard.writeText(shareText);
+      } catch {
+        // Fallback
+      }
+    } else {
+      try {
+        await RNShare.share({ message: shareText, title: 'Le Saint Coran' });
+      } catch {
+        // User cancelled
+      }
     }
-  }).current;
+  };
 
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50 }).current;
-
-  const renderPage = useCallback(
-    ({ item: pageNumber }: { item: number }) => (
-      <QuranPage pageNumber={pageNumber} width={screenWidth} height={pageHeight} />
-    ),
-    [screenWidth, pageHeight]
-  );
-
-  const jumpToPage = useCallback(
-    (page: number) => {
-      const validPage = Math.max(1, Math.min(TOTAL_PAGES, page));
-      flatListRef.current?.scrollToIndex({ index: validPage - 1, animated: false });
-      setCurrentPage(validPage);
-    },
-    []
-  );
-
-  const handlePageInputSubmit = () => {
-    const page = parseInt(pageInputValue, 10);
-    if (!isNaN(page) && page >= 1 && page <= TOTAL_PAGES) {
-      jumpToPage(page);
+  const handleCopy = async (text: string) => {
+    if (Platform.OS === 'web') {
+      try { await navigator.clipboard.writeText(text); } catch {}
+    } else {
+      try { await Clipboard.setStringAsync(text); } catch {}
     }
-    setShowPageInput(false);
-    setPageInputValue('');
   };
 
-  const handleSurahSelect = (surah: SurahInfo) => {
-    jumpToPage(surah.startPage);
-    setShowSurahPicker(false);
-    setSurahSearch('');
+  const handleDownload = (url: string) => {
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank');
+    } else {
+      Linking.openURL(url).catch(() => {});
+    }
   };
 
-  const filteredSurahs = surahSearch
-    ? SURAH_PAGES.filter(
-        (s) =>
-          s.name.toLowerCase().includes(surahSearch.toLowerCase()) ||
-          s.arabicName.includes(surahSearch) ||
-          s.number.toString() === surahSearch
-      )
-    : SURAH_PAGES;
+  if (!visible) return null;
 
-  const goToPrevPage = () => {
-    if (currentPage > 1) jumpToPage(currentPage - 1);
-  };
+  // ─── Web: Use iframe ───
+  if (Platform.OS === 'web') {
+    return (
+      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+        <SafeAreaView style={[styles.container, { backgroundColor: darkMode ? '#0a0a0a' : '#f5f0e8' }]}>
+          {/* Header */}
+          <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : '#1b5e20' }]}>
+            <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerCenter}>
+              <Text style={styles.headerTitle}>المصحف الشريف</Text>
+              <Text style={styles.headerSubtitle}>{currentSurah.arabicName} - Page {currentPage}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
 
-  const goToNextPage = () => {
-    if (currentPage < TOTAL_PAGES) jumpToPage(currentPage + 1);
-  };
+          {/* Flipbook iframe */}
+          <View style={styles.webviewContainer}>
+            <iframe
+              ref={iframeRef as any}
+              srcDoc={htmlContent}
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+              }}
+              sandbox="allow-scripts allow-same-origin allow-popups"
+            />
+          </View>
+        </SafeAreaView>
+        <ShareModal
+          visible={shareModalVisible}
+          onClose={() => setShareModalVisible(false)}
+          text={shareText}
+          darkMode={darkMode}
+        />
+      </Modal>
+    );
+  }
+
+  // ─── Native: Use WebView ───
+  const WebView = require('react-native-webview').default;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* ─── Header ─── */}
-        <View style={[styles.header, { backgroundColor: colors.headerBg }]}>
-          <TouchableOpacity onPress={onClose} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+      <SafeAreaView style={[styles.container, { backgroundColor: darkMode ? '#0a0a0a' : '#f5f0e8' }]}>
+        {/* Header */}
+        <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : '#1b5e20' }]}>
+          <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>المصحف الشريف</Text>
-            <Text style={styles.headerSubtitle}>Le Saint Coran</Text>
+            <Text style={styles.headerSubtitle}>{currentSurah.arabicName} - Page {currentPage}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.headerBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
             <Ionicons name="close" size={24} color="#fff" />
           </TouchableOpacity>
         </View>
 
-        {/* ─── Page Viewer ─── */}
-        <FlatList
-          ref={flatListRef}
-          data={pages}
-          renderItem={renderPage}
-          keyExtractor={(item) => `page-${item}`}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          getItemLayout={getItemLayout}
-          onViewableItemsChanged={onViewableItemsChanged}
-          viewabilityConfig={viewabilityConfig}
-          initialScrollIndex={Math.max(0, initialPage - 1)}
-          windowSize={3}
-          maxToRenderPerBatch={2}
-          initialNumToRender={1}
-          removeClippedSubviews={Platform.OS !== 'web'}
-          style={styles.pageList}
+        {/* Flipbook WebView */}
+        <WebView
+          ref={webViewRef}
+          source={{ html: htmlContent }}
+          style={styles.webviewContainer}
+          onMessage={handleMessage}
+          javaScriptEnabled
+          domStorageEnabled
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction={false}
+          originWhitelist={['*']}
+          mixedContentMode="always"
+          allowsFullscreenVideo={false}
+          bounces={false}
+          overScrollMode="never"
+          scrollEnabled={false}
+          scalesPageToFit={false}
+          setSupportMultipleWindows={false}
+          startInLoadingState
+          renderLoading={() => (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color="#00897b" />
+              <Text style={styles.loadingText}>Chargement du Mushaf...</Text>
+            </View>
+          )}
         />
-
-        {/* ─── Footer Navigation ─── */}
-        <View style={[styles.footer, { backgroundColor: colors.footerBg, borderTopColor: colors.footerBorder }]}>
-          <TouchableOpacity onPress={goToPrevPage} style={styles.navBtn} disabled={currentPage <= 1}>
-            <Ionicons name="chevron-back" size={22} color={currentPage <= 1 ? colors.cardBorder : colors.primary} />
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => { setPageInputValue(String(currentPage)); setShowPageInput(true); }} style={styles.pageInfo}>
-            <Text style={[styles.pageNumber, { color: colors.primary }]}>
-              {currentPage} / {TOTAL_PAGES}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => setShowSurahPicker(true)} style={styles.surahInfo}>
-            <Text style={[styles.surahName, { color: colors.text }]} numberOfLines={1}>
-              {currentSurah.arabicName}
-            </Text>
-            <Ionicons name="list" size={18} color={colors.primary} style={{ marginLeft: 6 }} />
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={goToNextPage} style={styles.navBtn} disabled={currentPage >= TOTAL_PAGES}>
-            <Ionicons name="chevron-forward" size={22} color={currentPage >= TOTAL_PAGES ? colors.cardBorder : colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ─── Page Jump Input Modal ─── */}
-        <Modal visible={showPageInput} transparent animationType="fade" onRequestClose={() => setShowPageInput(false)}>
-          <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setShowPageInput(false)}>
-            <View style={[styles.pageInputCard, { backgroundColor: colors.card }]}>
-              <Text style={[styles.pageInputTitle, { color: colors.text }]}>Aller à la page</Text>
-              <TextInput
-                style={[styles.pageInputField, { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.background }]}
-                value={pageInputValue}
-                onChangeText={setPageInputValue}
-                keyboardType="number-pad"
-                placeholder={`1 - ${TOTAL_PAGES}`}
-                placeholderTextColor={colors.textSecondary}
-                autoFocus
-                onSubmitEditing={handlePageInputSubmit}
-                selectTextOnFocus
-              />
-              <TouchableOpacity style={[styles.pageInputBtn, { backgroundColor: colors.primary }]} onPress={handlePageInputSubmit}>
-                <Text style={styles.pageInputBtnText}>Aller</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </Modal>
-
-        {/* ─── Surah Picker Modal ─── */}
-        <Modal visible={showSurahPicker} animationType="slide" onRequestClose={() => { setShowSurahPicker(false); setSurahSearch(''); }}>
-          <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-            <View style={[styles.pickerHeader, { backgroundColor: colors.headerBg }]}>
-              <TouchableOpacity onPress={() => { setShowSurahPicker(false); setSurahSearch(''); }} style={styles.headerBtn}>
-                <Ionicons name="arrow-back" size={24} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.pickerHeaderTitle}>Sourates</Text>
-              <View style={{ width: 40 }} />
-            </View>
-
-            <View style={[styles.pickerSearch, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
-              <Ionicons name="search" size={20} color={colors.textSecondary} />
-              <TextInput
-                style={[styles.pickerSearchInput, { color: colors.text }]}
-                placeholder="Rechercher une sourate..."
-                placeholderTextColor={colors.textSecondary}
-                value={surahSearch}
-                onChangeText={setSurahSearch}
-              />
-              {surahSearch.length > 0 && (
-                <TouchableOpacity onPress={() => setSurahSearch('')}>
-                  <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <ScrollView style={styles.pickerList} showsVerticalScrollIndicator={false}>
-              {filteredSurahs.map((surah) => (
-                <TouchableOpacity
-                  key={surah.number}
-                  style={[
-                    styles.pickerItem,
-                    { borderBottomColor: colors.cardBorder },
-                    currentSurah.number === surah.number && { backgroundColor: colors.primary + '15' },
-                  ]}
-                  onPress={() => handleSurahSelect(surah)}
-                  activeOpacity={0.7}
-                >
-                  <View style={[styles.pickerNumber, { backgroundColor: colors.primary }]}>
-                    <Text style={styles.pickerNumberText}>{surah.number}</Text>
-                  </View>
-                  <View style={styles.pickerItemInfo}>
-                    <Text style={[styles.pickerItemName, { color: colors.text }]}>{surah.name}</Text>
-                    <Text style={[styles.pickerItemPage, { color: colors.textSecondary }]}>
-                      Page {surah.startPage}
-                    </Text>
-                  </View>
-                  <Text style={[styles.pickerItemArabic, { color: colors.primary }]}>{surah.arabicName}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </SafeAreaView>
-        </Modal>
       </SafeAreaView>
+      <ShareModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        text={shareText}
+        darkMode={darkMode}
+      />
     </Modal>
   );
 }
@@ -475,7 +391,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -510,178 +425,23 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     marginTop: 1,
   },
-  // Page viewer
-  pageList: {
+  webviewContainer: {
     flex: 1,
   },
-  pageContainer: {
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f5f0e8',
   },
-  pageImage: {
-    flex: 1,
-  },
-  pageLoading: {
-    position: 'absolute',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1,
-  },
-  pageLoadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#6c757d',
-  },
-  pageErrorText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#dc2626',
-    textAlign: 'center',
-  },
-  // Footer
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-  },
-  navBtn: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pageInfo: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  pageNumber: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  surahInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 8,
-  },
-  surahName: {
+  loadingText: {
+    marginTop: 16,
     fontSize: 16,
+    color: '#00897b',
     fontWeight: '600',
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-  },
-  // Page jump modal
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  pageInputCard: {
-    width: '100%',
-    maxWidth: 320,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-  },
-  pageInputTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  pageInputField: {
-    width: '100%',
-    height: 48,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 16,
-    fontSize: 18,
-    textAlign: 'center',
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  pageInputBtn: {
-    width: '100%',
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  pageInputBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // Surah picker
-  pickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    ...Platform.select({
-      ios: { paddingTop: 4 },
-      default: {},
-    }),
-  },
-  pickerHeaderTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-    textAlign: 'center',
-  },
-  pickerSearch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 10,
-    borderBottomWidth: 1,
-  },
-  pickerSearchInput: {
-    flex: 1,
-    fontSize: 15,
-  },
-  pickerList: {
-    flex: 1,
-  },
-  pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  pickerNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  pickerNumberText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  pickerItemInfo: {
-    flex: 1,
-  },
-  pickerItemName: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  pickerItemPage: {
-    fontSize: 12,
-  },
-  pickerItemArabic: {
-    fontSize: 18,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
   },
 });

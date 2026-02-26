@@ -10,7 +10,7 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/useAuth';
 export default function Welcome() {
   const { width, height } = useWindowDimensions();
   const { signInWithGoogle } = useAuth();
+  const router = useRouter();
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const imageSize = Math.min(width * 0.65, height * 0.35, 320);
@@ -89,13 +90,14 @@ export default function Welcome() {
           >
             {error && <Text style={styles.error}>{error}</Text>}
 
-            <Link href="/register" asChild>
-              <Pressable style={[styles.button, styles.primaryButton]}>
-                <Text style={[styles.buttonText, styles.primaryButtonText]}>
-                  Get Started
-                </Text>
-              </Pressable>
-            </Link>
+            <Pressable
+              style={[styles.button, styles.primaryButton]}
+              onPress={() => router.push('/(auth)/register')}
+            >
+              <Text style={[styles.buttonText, styles.primaryButtonText]}>
+                Get Started
+              </Text>
+            </Pressable>
 
             <View style={styles.dividerContainer}>
               <View style={styles.divider} />
@@ -238,7 +240,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 10,
   },
   primaryButton: {
     backgroundColor: '#0053C1',
@@ -262,6 +263,7 @@ const styles = StyleSheet.create({
   googleIcon: {
     width: 20,
     height: 20,
+    marginRight: 10,
   },
   dividerContainer: {
     flexDirection: 'row',
