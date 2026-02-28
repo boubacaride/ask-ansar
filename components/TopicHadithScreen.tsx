@@ -355,27 +355,6 @@ export function TopicHadithScreen({
           }}
           scrollEventThrottle={400}
         >
-          {categoryId === 'prayer' && (
-            <TouchableOpacity
-              style={[styles.salahGuideBanner, { backgroundColor: colors.card, borderColor: categoryColor }]}
-              onPress={() => router.push('/(tabs)/sunnah/salah-guide')}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.salahGuideBannerIcon, { backgroundColor: `${categoryColor}15` }]}>
-                <FontAwesome5 name="book-reader" size={22} color={categoryColor} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.salahGuideBannerTitle, { color: colors.text }]}>
-                  Guide Pour Apprendre à Prier Salah
-                </Text>
-                <Text style={[styles.salahGuideBannerSubtitle, { color: colors.textSecondary }]}>
-                  دليل تعلم الصلاة  •  Guide complet pas à pas
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={22} color={categoryColor} />
-            </TouchableOpacity>
-          )}
-
           <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
             {hadiths.length} hadith{hadiths.length > 1 ? 's' : ''} trouvé{hadiths.length > 1 ? 's' : ''}
             {hasMore && ' (glissez pour en voir plus)'}
@@ -483,6 +462,27 @@ export function TopicHadithScreen({
               </View>
             );
           })}
+
+          {categoryId === 'prayer' && (
+            <TouchableOpacity
+              style={[styles.salahGuideBanner, { backgroundColor: colors.card, borderColor: categoryColor }]}
+              onPress={() => router.push('/(tabs)/sunnah/salah-guide')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.salahGuideBannerIcon, { backgroundColor: `${categoryColor}15` }]}>
+                <FontAwesome5 name="book-reader" size={22} color={categoryColor} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.salahGuideBannerTitle, { color: colors.text }]}>
+                  Guide Pour Apprendre à Prier Salah
+                </Text>
+                <Text style={[styles.salahGuideBannerSubtitle, { color: colors.textSecondary }]}>
+                  دليل تعلم الصلاة  •  Guide complet pas à pas
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={22} color={categoryColor} />
+            </TouchableOpacity>
+          )}
 
           {loadingMore && (
             <View style={styles.loadingMoreContainer}>
