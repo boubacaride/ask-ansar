@@ -161,9 +161,10 @@ interface MushafReaderProps {
   onClose: () => void;
   initialPage?: number;
   pdfUrl?: string;
+  isFriday?: boolean;
 }
 
-export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl }: MushafReaderProps) {
+export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl, isFriday = false }: MushafReaderProps) {
   const { darkMode } = useSettings();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [currentPage, setCurrentPage] = useState(initialPage);
@@ -174,8 +175,8 @@ export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl }: Mush
 
   // Generate HTML content
   const htmlContent = useMemo(
-    () => generateFlipbookHtml(SURAH_PAGES, darkMode, initialPage, pdfUrl),
-    [darkMode, initialPage, pdfUrl]
+    () => generateFlipbookHtml(SURAH_PAGES, darkMode, initialPage, pdfUrl, isFriday),
+    [darkMode, initialPage, pdfUrl, isFriday]
   );
 
   const currentSurah = getSurahForPage(currentPage);
@@ -291,7 +292,7 @@ export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl }: Mush
       <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
         <SafeAreaView style={[styles.container, { backgroundColor: darkMode ? '#0a0a0a' : '#f5f0e8' }]}>
           {/* Header */}
-          <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : '#1b5e20' }]}>
+          <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : (isFriday ? '#5D4037' : '#1b5e20') }]}>
             <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
@@ -335,7 +336,7 @@ export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl }: Mush
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[styles.container, { backgroundColor: darkMode ? '#0a0a0a' : '#f5f0e8' }]}>
         {/* Header */}
-        <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : '#1b5e20' }]}>
+        <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : (isFriday ? '#5D4037' : '#1b5e20') }]}>
           <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>

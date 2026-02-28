@@ -13,10 +13,12 @@ import {
   Platform,
   Animated,
   Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigationStore, SavedLocation } from '@/store/navigationstore';
 import { useSettings } from '@/store/settingsStore';
 
@@ -65,6 +67,7 @@ const reverseGeocode = async (lat: number, lon: number): Promise<string | null> 
 
 export default function NavigationScreen() {
   const { darkMode } = useSettings();
+  const insets = useSafeAreaInsets();
   const {
     savedLocations,
     selectedDestination,
@@ -388,7 +391,7 @@ const handleDeleteLocation = (location: SavedLocation) => {
         style={styles.gradient}
       >
         {/* Header */}
-        <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
+        <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
           <View style={styles.headerContent}>
             <View style={styles.headerIcon}>
               <FontAwesome5 name="compass" size={28} color={colors.primary} />
@@ -834,9 +837,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    // paddingTop is set dynamically via useSafeAreaInsets
     paddingBottom: 20,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
   headerContent: {

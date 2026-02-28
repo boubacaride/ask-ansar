@@ -46,3 +46,4 @@ Thumbs.db
 
 # eas
 # eas.json (needed in repo for EAS Build)
+.vercel

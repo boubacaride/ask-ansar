@@ -24,7 +24,6 @@ export default function RootLayout() {
   const { session, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const [isNavigationReady, setIsNavigationReady] = useState(false);
   const [iconFontsLoaded, setIconFontsLoaded] = useState(false);
 
   const [fontsLoaded, fontError] = useFonts({
@@ -64,21 +63,18 @@ export default function RootLayout() {
     }
   }, [allFontsReady]);
 
+  // Navigate based on auth state — responds to session changes (e.g. after OAuth)
   useEffect(() => {
     if (loading || !allFontsReady) return;
 
     const inAuthGroup = segments[0] === '(auth)';
 
-    if (!isNavigationReady) {
-      setIsNavigationReady(true);
-
-      if (!session && !inAuthGroup) {
-        router.replace('/(auth)/welcome');
-      } else if (session && inAuthGroup) {
-        router.replace('/(tabs)');
-      }
+    if (!session && !inAuthGroup) {
+      router.replace('/(auth)/welcome');
+    } else if (session && inAuthGroup) {
+      router.replace('/(tabs)');
     }
-  }, [session, loading, allFontsReady, segments, isNavigationReady]);
+  }, [session, loading, allFontsReady]);
 
   // Ensure proper initialization on web platform — mobile fixes + PWA meta tags
   useEffect(() => {

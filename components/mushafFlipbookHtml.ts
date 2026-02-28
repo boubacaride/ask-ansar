@@ -16,6 +16,7 @@ export function generateFlipbookHtml(
   darkMode: boolean,
   initialPage: number = 1,
   pdfUrl: string = 'https://d6artovf3mfn.cloudfront.net/ansar_pdf/mumtaz-1.pdf',
+  isFriday: boolean = false,
 ): string {
   const surahJson = JSON.stringify(surahPages);
   // Safely escape the PDF URL for embedding inside a JS string literal in HTML
@@ -31,13 +32,13 @@ export function generateFlipbookHtml(
 <style>
   :root {
     --bg: ${darkMode ? '#0a0a0a' : '#f5f0e8'};
-    --toolbar-bg: ${darkMode ? '#1a1a2e' : '#1b5e20'};
+    --toolbar-bg: ${darkMode ? '#1a1a2e' : (isFriday ? '#5D4037' : '#1b5e20')};
     --toolbar-text: #ffffff;
     --sidebar-bg: ${darkMode ? '#1e1e2d' : '#ffffff'};
     --sidebar-text: ${darkMode ? '#ffffff' : '#1a1a2e'};
     --sidebar-secondary: ${darkMode ? '#a0a0b0' : '#6c757d'};
     --sidebar-border: ${darkMode ? '#2d2d44' : '#e0e0e0'};
-    --sidebar-hover: ${darkMode ? '#2d2d44' : '#e8f5e9'};
+    --sidebar-hover: ${darkMode ? '#2d2d44' : (isFriday ? '#EFEBE9' : '#e8f5e9')};
     --accent: #c9a227;
     --primary: #00897b;
     --overlay: rgba(0,0,0,0.5);
@@ -71,15 +72,32 @@ export function generateFlipbookHtml(
     display: flex;
     align-items: center;
     justify-content: center;
+    direction: ltr;
     overflow: hidden;
     width: 100%;
     height: 100%;
+    transition: overflow 0.2s;
   }
+  #canvasWrapper.zoomed {
+    overflow: auto;
+    align-items: flex-start;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+    cursor: grab;
+  }
+  #canvasWrapper.zoomed:active { cursor: grabbing; }
 
   #pageCanvas {
     max-width: 100%;
     max-height: 100%;
     object-fit: contain;
+  }
+  #canvasWrapper.zoomed #pageCanvas {
+    max-width: none;
+    max-height: none;
+  }
+  body.is-zoomed .nav-arrow {
+    display: none !important;
   }
 
   /* ─── Navigation Arrows ─── */
@@ -92,7 +110,7 @@ export function generateFlipbookHtml(
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(27, 94, 32, 0.75);
+    background: ${isFriday ? 'rgba(93, 64, 55, 0.75)' : 'rgba(27, 94, 32, 0.75)'};
     border: 2px solid rgba(255,255,255,0.3);
     color: white;
     font-size: 26px;
@@ -105,8 +123,8 @@ export function generateFlipbookHtml(
     -webkit-backdrop-filter: blur(4px);
     -webkit-tap-highlight-color: transparent;
   }
-  .nav-arrow:hover { opacity: 1; background: rgba(27, 94, 32, 0.9); }
-  .nav-arrow:active { opacity: 1; background: rgba(27, 94, 32, 1); }
+  .nav-arrow:hover { opacity: 1; background: ${isFriday ? 'rgba(93, 64, 55, 0.9)' : 'rgba(27, 94, 32, 0.9)'}; }
+  .nav-arrow:active { opacity: 1; background: ${isFriday ? 'rgba(93, 64, 55, 1)' : 'rgba(27, 94, 32, 1)'}; }
   .nav-arrow.disabled { opacity: 0.3; cursor: default; pointer-events: none; }
   /* Right arrow on RIGHT side => goes to LOWER page numbers (toward chapter 1) */
   .nav-arrow.right { right: 4px; }
@@ -481,7 +499,7 @@ export function generateFlipbookHtml(
   #audioControlBar {
     display: none;
     flex-direction: column;
-    background: linear-gradient(135deg, rgba(27,94,32,0.97), rgba(0,137,123,0.97));
+    background: linear-gradient(135deg, ${isFriday ? 'rgba(93,64,55,0.97), rgba(109,76,65,0.97)' : 'rgba(27,94,32,0.97), rgba(0,137,123,0.97)'});
     flex-shrink: 0;
     overflow: hidden;
   }
@@ -583,6 +601,17 @@ export function generateFlipbookHtml(
     .share-item { padding: 12px 14px; font-size: 13px; }
     #moreMenu { min-width: 200px; }
     #shareMenu { min-width: 180px; }
+  }
+  @media (max-width: 375px) {
+    .nav-arrow { width: 30px; height: 50px; font-size: 20px; }
+    .nav-arrow svg { width: 18px; height: 18px; }
+    #toolbar { height: 46px; }
+    .tb-btn { width: 36px; height: 36px; min-width: 36px; }
+    .tb-btn svg { width: 18px; height: 18px; }
+    #pageCounter { font-size: 11px; min-width: 48px; padding: 0 2px; }
+    .sidebar-title { font-size: 16px; }
+    .surah-item { padding: 10px 12px; }
+    .surah-arabic { font-size: 16px; }
   }
 </style>
 </head>
@@ -793,8 +822,12 @@ export function generateFlipbookHtml(
 
     pdfDoc.getPage(num).then(function(page) {
       const wrapper = document.getElementById('canvasWrapper');
-      const vw = wrapper.clientWidth;
-      const vh = wrapper.clientHeight;
+      // When zoomed, wrapper is scrollable — measure the base (unzoomed) size
+      var isZoomed = zoomLevel > 1.05;
+      // Temporarily remove zoomed class to get the base container dimensions
+      wrapper.classList.remove('zoomed');
+      var vw = wrapper.clientWidth;
+      var vh = wrapper.clientHeight;
 
       const unscaledViewport = page.getViewport({ scale: 1 });
       const fitScale = Math.min(vw / unscaledViewport.width, vh / unscaledViewport.height);
@@ -804,9 +837,22 @@ export function generateFlipbookHtml(
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
+      // Toggle zoomed class for overflow scrolling
+      if (isZoomed) {
+        wrapper.classList.add('zoomed');
+        document.body.classList.add('is-zoomed');
+      } else {
+        document.body.classList.remove('is-zoomed');
+      }
+
       const renderContext = { canvasContext: ctx, viewport: viewport };
       page.render(renderContext).promise.then(function() {
         rendering = false;
+        // Center scroll when zoomed
+        if (isZoomed) {
+          wrapper.scrollLeft = (canvas.width - vw) / 2;
+          wrapper.scrollTop = (canvas.height - vh) / 2;
+        }
         updateUI();
         // If another page was queued while rendering, render it now
         if (pendingPage !== null) {
@@ -837,15 +883,27 @@ export function generateFlipbookHtml(
   // ─── Zoom ───
   function zoomIn() {
     if (zoomLevel < 3) {
-      zoomLevel = Math.min(3, +(zoomLevel + 0.3).toFixed(1));
+      zoomLevel = Math.min(3, +(zoomLevel + 0.25).toFixed(2));
       renderPage(currentPage);
+      showZoomToast();
     }
   }
   function zoomOut() {
     if (zoomLevel > 0.5) {
-      zoomLevel = Math.max(0.5, +(zoomLevel - 0.3).toFixed(1));
+      zoomLevel = Math.max(0.5, +(zoomLevel - 0.25).toFixed(2));
       renderPage(currentPage);
+      showZoomToast();
     }
+  }
+  function resetZoom() {
+    zoomLevel = 1.0;
+    document.body.classList.remove('is-zoomed');
+    renderPage(currentPage);
+    showZoomToast();
+  }
+  function showZoomToast() {
+    var pct = Math.round(zoomLevel * 100);
+    showToast(pct + '%');
   }
 
   // ─── Swipe / Touch + Pinch-to-Zoom ───
@@ -893,11 +951,14 @@ export function generateFlipbookHtml(
   viewer.addEventListener('touchend', function(e) {
     if (isPinching) {
       isPinching = false;
+      showZoomToast();
       return;
     }
     if (e.changedTouches.length === 1 && e.touches.length === 0) {
       var dx = e.changedTouches[0].clientX - touchStartX;
       var dy = e.changedTouches[0].clientY - touchStartY;
+      // When zoomed in, don't change pages on swipe (let scroll handle panning)
+      if (zoomLevel > 1.05) return;
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
         // RTL layout: swipe left = next (higher page), swipe right = prev (lower page)
         if (dx < 0) nextPage();
@@ -906,21 +967,74 @@ export function generateFlipbookHtml(
     }
   }, { passive: true });
 
-  // Mouse drag for web
+  // Double-tap to toggle zoom (mobile)
+  var lastTapTime = 0;
+  viewer.addEventListener('touchend', function(e) {
+    if (e.changedTouches.length !== 1 || e.touches.length !== 0) return;
+    var now = Date.now();
+    if (now - lastTapTime < 300) {
+      // Double-tap detected
+      if (zoomLevel > 1.05) { resetZoom(); } else { zoomLevel = 2.0; renderPage(currentPage); showZoomToast(); }
+      e.preventDefault();
+    }
+    lastTapTime = now;
+  }, { passive: false });
+
+  // Mouse drag for web (swipe pages OR pan when zoomed)
   let mouseDown = false;
   let mouseStartX = 0;
+  let mouseStartY = 0;
+  let mousePanning = false;
+
   viewer.addEventListener('mousedown', function(e) {
     mouseDown = true;
+    mousePanning = false;
     mouseStartX = e.clientX;
+    mouseStartY = e.clientY;
+    if (zoomLevel > 1.05) {
+      e.preventDefault(); // Prevent text selection while panning
+    }
   });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!mouseDown) return;
+    // When zoomed, pan the canvas wrapper by scrolling
+    if (zoomLevel > 1.05) {
+      var wrapper = document.getElementById('canvasWrapper');
+      var dx = e.clientX - mouseStartX;
+      var dy = e.clientY - mouseStartY;
+      wrapper.scrollLeft -= dx;
+      wrapper.scrollTop -= dy;
+      mouseStartX = e.clientX;
+      mouseStartY = e.clientY;
+      mousePanning = true;
+    }
+  });
+
   document.addEventListener('mouseup', function(e) {
     if (!mouseDown) return;
     mouseDown = false;
+    // If we were panning while zoomed, don't change pages
+    if (zoomLevel > 1.05 || mousePanning) { mousePanning = false; return; }
     var dx = e.clientX - mouseStartX;
     if (Math.abs(dx) > 60) {
       if (dx < 0) nextPage();
       else prevPage();
     }
+  });
+
+  // Scroll-wheel zoom on desktop (Ctrl+scroll or Cmd+scroll)
+  viewer.addEventListener('wheel', function(e) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      if (e.deltaY < 0) zoomIn();
+      else zoomOut();
+    }
+  }, { passive: false });
+
+  // Double-click to toggle zoom on desktop
+  viewer.addEventListener('dblclick', function(e) {
+    if (zoomLevel > 1.05) { resetZoom(); } else { zoomLevel = 2.0; renderPage(currentPage); showZoomToast(); }
   });
 
   // Keyboard
@@ -929,7 +1043,8 @@ export function generateFlipbookHtml(
     else if (e.key === 'ArrowRight') prevPage();
     else if (e.key === '+' || e.key === '=') zoomIn();
     else if (e.key === '-') zoomOut();
-    else if (e.key === 'Escape') closeMenus();
+    else if (e.key === '0') resetZoom();
+    else if (e.key === 'Escape') { if (zoomLevel > 1.05) resetZoom(); else closeMenus(); }
   });
 
   // ─── UI Updates ───
@@ -1442,13 +1557,14 @@ export function generateFlipbookHtml(
       const msg = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
       if (msg.type === 'goToPage') goToPage(msg.page);
       if (msg.type === 'setDarkMode') {
+        var fri = ${isFriday};
         document.documentElement.style.setProperty('--bg', msg.dark ? '#0a0a0a' : '#f5f0e8');
-        document.documentElement.style.setProperty('--toolbar-bg', msg.dark ? '#1a1a2e' : '#1b5e20');
+        document.documentElement.style.setProperty('--toolbar-bg', msg.dark ? '#1a1a2e' : (fri ? '#5D4037' : '#1b5e20'));
         document.documentElement.style.setProperty('--sidebar-bg', msg.dark ? '#1e1e2d' : '#ffffff');
         document.documentElement.style.setProperty('--sidebar-text', msg.dark ? '#ffffff' : '#1a1a2e');
         document.documentElement.style.setProperty('--sidebar-secondary', msg.dark ? '#a0a0b0' : '#6c757d');
         document.documentElement.style.setProperty('--sidebar-border', msg.dark ? '#2d2d44' : '#e0e0e0');
-        document.documentElement.style.setProperty('--sidebar-hover', msg.dark ? '#2d2d44' : '#e8f5e9');
+        document.documentElement.style.setProperty('--sidebar-hover', msg.dark ? '#2d2d44' : (fri ? '#EFEBE9' : '#e8f5e9'));
       }
     } catch(ex) {}
   });

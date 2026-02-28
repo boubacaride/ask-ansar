@@ -4,6 +4,10 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
+// On web, enable detectSessionInUrl so Supabase automatically processes
+// OAuth tokens from the URL hash when Google redirects back to the app.
+// On native, deep linking handles the callback instead.
+
 // SecureStore has a 2048-byte value limit on iOS.
 // JWTs can exceed this, so we split large values into chunks
 // stored in AsyncStorage and keep the chunk index in SecureStore.
@@ -69,6 +73,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     storage: ExpoSecureStoreAdapter,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false,
+    detectSessionInUrl: Platform.OS === 'web',
   },
 });

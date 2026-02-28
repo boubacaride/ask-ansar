@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, Platform, Linking, ScrollView, Pressable, Image } from 'react-native';
+import { View, Text, StyleSheet, Platform, Linking, ScrollView, Pressable, Image, useWindowDimensions } from 'react-native';
 import { ExternalLink } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
 import QuranDropdown from '@/components/QuranDropdown';
 import HadithDropdown from '@/components/HadithDropdown';
@@ -75,6 +76,10 @@ const sources = [
 
 export default function SourcesScreen() {
   const { darkMode } = useSettings();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const isSmallScreen = screenWidth < 380;
+  const imageHeight = Math.min(240, screenHeight * 0.25);
 
   const handleSurahSelect = (surahNumber: number) => {
     Linking.openURL(`https://quran.com/${surahNumber}`);
@@ -91,8 +96,8 @@ export default function SourcesScreen() {
       style={[styles.container, darkMode && styles.containerDark]}
       contentContainerStyle={styles.content}
     >
-      <View style={styles.header}>
-        <Text style={[styles.title, darkMode && styles.darkModeText]}>
+      <View style={[styles.header, { marginTop: (Platform.OS === 'web' ? 20 : insets.top) + 8 }]}>
+        <Text style={[styles.title, darkMode && styles.darkModeText, isSmallScreen && { fontSize: 20 }]}>
           The Guideposts of Islam
         </Text>
         <Text style={[styles.arabicTitle, darkMode && styles.darkModeTextSecondary]}>
@@ -123,7 +128,7 @@ export default function SourcesScreen() {
               </View>
             )}
             
-            <View style={styles.imageContainer}>
+            <View style={[styles.imageContainer, { height: imageHeight }]}>
               <Image
                 source={{ uri: source.image }}
                 style={styles.cardImage}
@@ -178,9 +183,9 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginTop: 32,
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    // marginTop is set dynamically via useSafeAreaInsets
+    marginBottom: 24,
+    paddingHorizontal: 16,
   },
   title: {
     fontSize: 24,

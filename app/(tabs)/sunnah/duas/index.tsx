@@ -49,7 +49,7 @@ export default function DuasScreen() {
         <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => router.replace('/(tabs)/sunnah')}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -138,8 +138,9 @@ const styles = StyleSheet.create({
   },
   headerArabic: {
     fontSize: 16,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+    fontFamily: 'NotoNaskhArabic-Regular',
     marginTop: 2,
+    writingDirection: 'rtl' as const,
   },
   placeholder: {
     width: 40,

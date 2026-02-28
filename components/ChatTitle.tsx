@@ -1,11 +1,14 @@
 import { View, Text, StyleSheet, Platform, Image } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
 
 export default function ChatTitle() {
   const { darkMode } = useSettings();
+  const insets = useSafeAreaInsets();
+  const topPadding = Platform.OS === 'web' ? 12 : insets.top + 10;
 
   return (
-    <View style={[styles.container, darkMode && styles.containerDark]}>
+    <View style={[styles.container, darkMode && styles.containerDark, { paddingTop: topPadding }]}>
       <View style={styles.content}>
         <View style={[styles.logoContainer, darkMode && styles.logoContainerDark]}>
           <Image
@@ -28,7 +31,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
-    paddingTop: Platform.select({ ios: 60, android: 40, web: 12 }),
+    // paddingTop is set dynamically via useSafeAreaInsets
     paddingBottom: Platform.OS === 'web' ? 12 : 20,
     paddingHorizontal: Platform.OS === 'web' ? 16 : 20,
     zIndex: 10,

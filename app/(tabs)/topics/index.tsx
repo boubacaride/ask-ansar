@@ -1,5 +1,6 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
 import { BookOpen, Heart, Users, Sparkles, MessageCircle, Book, Lightbulb, Ban, HelpCircle } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
@@ -93,6 +94,8 @@ const topics: Topic[] = [
 export default function TopicsScreen() {
   const router = useRouter();
   const { darkMode } = useSettings();
+  const { width: screenWidth } = useWindowDimensions();
+  const isSmallScreen = screenWidth < 380;
 
   const handleTopicPress = (topicId: string) => {
     router.push(`/topics/${topicId}`);
@@ -181,13 +184,13 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
   },
   topicsGrid: {
-    gap: 16,
-    paddingHorizontal: 20,
+    gap: 12,
+    paddingHorizontal: 16,
   },
   topicCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,

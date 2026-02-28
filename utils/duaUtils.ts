@@ -6,6 +6,7 @@ export type { Dua } from './duaFallbacks';
 
 const DUA_CACHE_PREFIX = 'dua_cache_';
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DUA_CACHE_VERSION = 2; // Bump to invalidate old caches with corrupted UTF-8
 
 // ── Cache helpers ────────────────────────────────────────────────
 
@@ -16,7 +17,8 @@ async function getCachedDuas(category: string): Promise<Dua[] | null> {
     if (!cached) return null;
 
     const parsed = JSON.parse(cached);
-    if (Date.now() - parsed.timestamp > CACHE_EXPIRY) {
+    // Invalidate old caches (wrong version or expired)
+    if (parsed.version !== DUA_CACHE_VERSION || Date.now() - parsed.timestamp > CACHE_EXPIRY) {
       await AsyncStorage.removeItem(key);
       return null;
     }
@@ -31,9 +33,26 @@ async function getCachedDuas(category: string): Promise<Dua[] | null> {
 async function setCachedDuas(category: string, data: Dua[]): Promise<void> {
   try {
     const key = `${DUA_CACHE_PREFIX}${category}`;
-    await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+    await AsyncStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now(), version: DUA_CACHE_VERSION }));
   } catch (error) {
     console.error('Error setting cached duas:', error);
+  }
+}
+
+/**
+ * Clears all cached dua data from AsyncStorage.
+ * Useful when data needs to be refreshed after an update.
+ */
+export async function clearAllDuaCaches(): Promise<void> {
+  try {
+    const keys = await AsyncStorage.getAllKeys();
+    const duaCacheKeys = keys.filter(k => k.startsWith(DUA_CACHE_PREFIX));
+    if (duaCacheKeys.length > 0) {
+      await AsyncStorage.multiRemove(duaCacheKeys);
+      console.log(`Cleared ${duaCacheKeys.length} dua cache entries`);
+    }
+  } catch (error) {
+    console.error('Error clearing dua caches:', error);
   }
 }
 
@@ -128,5 +147,16 @@ export const DUA_CATEGORIES: DuaCategory[] = [
   { id: 'daily', label: 'Quotidiennes', icon: 'calendar-today', color: '#26A69A', iconFamily: 'MaterialCommunityIcons' },
   { id: 'quran', label: 'Du Coran', icon: 'book-open-variant', color: '#1565C0', iconFamily: 'MaterialCommunityIcons' },
   { id: 'rabbana', label: 'Rabbana (Notre Seigneur)', icon: 'hands-pray', color: '#6A1B9A', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'waking_up', label: 'Au R\u00e9veil', icon: 'alarm', color: '#FFB74D', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'wudu', label: 'Ablutions (Wudu)', icon: 'water', color: '#29B6F6', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'masjid', label: 'Entr\u00e9e/Sortie Mosqu\u00e9e', icon: 'mosque', color: '#66BB6A', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'sickness', label: 'Maladie & Gu\u00e9rison', icon: 'hospital-box', color: '#EF5350', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'hajj_umrah', label: 'Hajj & Omra', icon: 'star-crescent', color: '#c9a227', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'marriage', label: 'Mariage', icon: 'heart-multiple', color: '#F06292', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'weather', label: 'Pluie & Orage', icon: 'weather-lightning-rainy', color: '#78909C', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'anxiety', label: 'Angoisse & Tristesse', icon: 'heart-pulse', color: '#EC407A', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'parents', label: 'Parents & Famille', icon: 'account-group', color: '#FF7043', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'death', label: 'D\u00e9c\u00e8s & Fun\u00e9railles', icon: 'flower-tulip', color: '#8D6E63', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'toilet', label: 'Entr\u00e9e/Sortie Toilettes', icon: 'door', color: '#90A4AE', iconFamily: 'MaterialCommunityIcons' },
   { id: 'misc', label: "Autres Dou'as", icon: 'dots-horizontal', color: '#757575', iconFamily: 'MaterialCommunityIcons' },
 ];

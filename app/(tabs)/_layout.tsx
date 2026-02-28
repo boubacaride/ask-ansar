@@ -153,6 +153,13 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="sunnah/salah-guide"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="sunnah/duas/index"
         options={{
           href: null,

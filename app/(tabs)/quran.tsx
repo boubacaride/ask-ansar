@@ -8,9 +8,11 @@ import {
   Platform,
   TextInput,
   AppState,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
 import { QuranViewer } from '@/components/QuranViewer';
 import { MushafReader } from '@/components/MushafReader';
@@ -147,6 +149,9 @@ function isFriday(): boolean {
 
 export default function QuranScreen() {
   const { darkMode } = useSettings();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const isSmallScreen = screenWidth < 380;
   const [searchQuery, setSearchQuery] = useState('');
   const [viewerVisible, setViewerVisible] = useState(false);
   const [selectedSurah, setSelectedSurah] = useState<{ number: number; name: string } | null>(null);
@@ -238,14 +243,14 @@ export default function QuranScreen() {
         colors={darkMode ? ['#0a0a0a', '#1a1a2e', '#0d2137'] : ['#f8f9fa', '#e3f2fd', '#bbdefb']}
         style={styles.gradient}
       >
-        <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
+        <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
           <View style={styles.headerContent}>
-            <View style={[styles.headerIcon, { backgroundColor: 'rgba(0, 137, 123, 0.1)' }]}>
-              <Ionicons name="book" size={28} color={colors.primary} />
+            <View style={[styles.headerIcon, { backgroundColor: 'rgba(0, 137, 123, 0.1)', width: isSmallScreen ? 42 : 50, height: isSmallScreen ? 42 : 50, borderRadius: isSmallScreen ? 21 : 25 }]}>
+              <Ionicons name="book" size={isSmallScreen ? 24 : 28} color={colors.primary} />
             </View>
             <View>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>The Holy Qur'an</Text>
-              <Text style={[styles.headerArabic, { color: colors.accent }]}>القرآن الكريم</Text>
+              <Text style={[styles.headerTitle, { color: colors.text, fontSize: isSmallScreen ? 20 : 24 }]}>The Holy Qur'an</Text>
+              <Text style={[styles.headerArabic, { color: colors.accent, fontSize: isSmallScreen ? 16 : 18 }]}>القرآن الكريم</Text>
             </View>
           </View>
 
@@ -352,6 +357,7 @@ export default function QuranScreen() {
       <MushafReader
         visible={mushafVisible}
         onClose={() => setMushafVisible(false)}
+        isFriday={friday}
         {...(friday ? { pdfUrl: FRIDAY_PDF_URL } : {})}
       />
     </View>
@@ -366,9 +372,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingTop: Platform.OS === 'ios' ? 60 : 20,
+    // paddingTop is set dynamically via useSafeAreaInsets
     paddingBottom: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
   },
   headerContent: {

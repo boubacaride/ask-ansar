@@ -319,119 +319,95 @@ export default function SeerahMapScreen() {
             100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
           }
 
-          /* Modern Tooltip/Callout styles - compact for mobile */
+          /* Modern Tooltip/Callout styles - ultra compact for mobile */
           .tooltip {
             position: absolute;
             background: #ffffff;
-            border-radius: 16px;
+            border-radius: 0 0 6px 6px;
             padding: 0;
-            min-width: 260px;
-            max-width: calc(100vw - 32px);
-            width: 300px;
-            box-shadow: 0 12px 40px rgba(0,0,0,0.25), 0 4px 12px rgba(0,0,0,0.1);
+            min-width: 180px;
+            max-width: calc(100vw - 16px);
+            width: min(260px, calc(100vw - 16px));
+            max-height: calc(100vh - 8px);
+            overflow-y: auto;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.22), 0 1px 4px rgba(0,0,0,0.1);
             z-index: 1000;
             display: none;
-            overflow: hidden;
             border: none;
           }
           .tooltip.show {
             display: block;
-            animation: tooltipIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            animation: tooltipIn 0.25s ease-out;
           }
           @keyframes tooltipIn {
-            from { opacity: 0; transform: translateY(-20px) scale(0.9); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+            from { opacity: 0; transform: translateY(-8px); }
+            to { opacity: 1; transform: translateY(0); }
           }
-          .tooltip-arrow {
-            position: absolute;
-            bottom: -10px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0;
-            height: 0;
-            border-left: 10px solid transparent;
-            border-right: 10px solid transparent;
-            border-top: 10px solid #ffffff;
-            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
-          }
+          .tooltip-arrow { display: none; }
           .tooltip-header {
-            padding: 12px 14px;
+            padding: 3px 8px;
             background: linear-gradient(135deg, #1e3a5f 0%, #0D5C63 50%, #0a4a50 100%);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            position: relative;
-            overflow: hidden;
-          }
-          .tooltip-header::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -30%;
-            width: 80%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, transparent 60%);
-            pointer-events: none;
           }
           .tooltip-category {
             background: rgba(255,255,255,0.2);
-            backdrop-filter: blur(10px);
             color: white;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 8px;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             border: 1px solid rgba(255,255,255,0.25);
           }
           .tooltip-year {
             color: #fbbf24;
-            font-size: 18px;
+            font-size: 11px;
             font-weight: 800;
-            text-shadow: 0 1px 4px rgba(0,0,0,0.3);
           }
           .tooltip-location {
-            padding: 8px 14px;
-            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            padding: 2px 8px;
+            background: #f1f5f9;
             color: #334155;
-            font-size: 13px;
+            font-size: 10px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 4px;
             border-bottom: 1px solid #e2e8f0;
           }
           .tooltip-location svg {
             color: #dc2626;
             flex-shrink: 0;
+            width: 10px;
+            height: 10px;
           }
           .tooltip-counter {
             margin-left: auto;
             color: #475569;
-            font-size: 11px;
+            font-size: 8px;
             font-weight: 700;
-            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-            padding: 4px 10px;
-            border-radius: 20px;
+            background: #e2e8f0;
+            padding: 1px 5px;
+            border-radius: 10px;
             white-space: nowrap;
           }
           .tooltip-content {
-            padding: 12px 14px;
+            padding: 4px 8px;
             display: flex;
-            gap: 12px;
-            background: #ffffff;
+            gap: 6px;
           }
           .tooltip-image {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
             background: linear-gradient(135deg, #0D5C63 0%, #1e3a5f 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            box-shadow: 0 4px 12px rgba(13, 92, 99, 0.3);
+            font-size: 13px;
             flex-shrink: 0;
           }
           .tooltip-text {
@@ -443,79 +419,87 @@ export default function SeerahMapScreen() {
           }
           .tooltip-title {
             color: #0f172a;
-            font-size: 15px;
+            font-size: 11px;
             font-weight: 800;
-            margin-bottom: 4px;
-            line-height: 1.3;
+            margin-bottom: 0;
+            line-height: 1.2;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 1;
             -webkit-box-orient: vertical;
             overflow: hidden;
           }
           .tooltip-desc {
             color: #475569;
-            font-size: 12px;
-            line-height: 1.5;
+            font-size: 9px;
+            line-height: 1.2;
             display: -webkit-box;
-            -webkit-line-clamp: 2;
+            -webkit-line-clamp: 1;
             -webkit-box-orient: vertical;
             overflow: hidden;
           }
           .tooltip-link {
-            padding: 10px 14px 12px;
-            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            padding: 3px 8px 4px;
+            display: flex;
+            flex-direction: row;
+            gap: 4px;
           }
           .tooltip-link a {
+            flex: 1;
             color: #ffffff;
             text-decoration: none;
-            font-size: 13px;
+            font-size: 9px;
             font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 3px;
             background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-            padding: 10px 16px;
-            border-radius: 10px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+            padding: 5px 6px;
+            border-radius: 5px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
           }
-          .tooltip-link a:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(217, 119, 6, 0.45);
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-          }
-          .tooltip-link a:active {
-            transform: translateY(-1px);
+          .tooltip-link a svg {
+            width: 10px;
+            height: 10px;
           }
           .tooltip-quiz-btn {
-            width: 100%;
+            flex: 1;
             border: none;
-            font-size: 13px;
+            font-size: 9px;
             font-weight: 700;
             color: #ffffff;
             background: linear-gradient(135deg, #0D5C63 0%, #0a4a50 100%);
-            padding: 10px 16px;
-            border-radius: 10px;
+            padding: 5px 6px;
+            border-radius: 5px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            margin-top: 8px;
-            transition: all 0.3s ease;
-            box-shadow: 0 3px 10px rgba(13, 92, 99, 0.25);
+            gap: 3px;
+            margin-top: 0;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
           }
-          .tooltip-quiz-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
-          }
-          .tooltip-quiz-btn:active {
-            transform: translateY(-1px);
+          /* Extra compact on very small screens */
+          @media (max-width: 380px) {
+            .tooltip { width: calc(100vw - 12px); min-width: 160px; }
+            .tooltip-header { padding: 2px 6px; }
+            .tooltip-category { font-size: 7px; padding: 1px 5px; }
+            .tooltip-year { font-size: 10px; }
+            .tooltip-location { padding: 2px 6px; font-size: 9px; gap: 3px; }
+            .tooltip-location svg { width: 8px; height: 8px; }
+            .tooltip-counter { font-size: 7px; padding: 1px 4px; }
+            .tooltip-content { padding: 3px 6px; gap: 4px; }
+            .tooltip-image { width: 22px; height: 22px; font-size: 11px; border-radius: 5px; }
+            .tooltip-title { font-size: 10px; }
+            .tooltip-desc { font-size: 8px; }
+            .tooltip-link { padding: 2px 6px 3px; gap: 3px; }
+            .tooltip-link a { padding: 4px 4px; font-size: 8px; border-radius: 4px; gap: 2px; }
+            .tooltip-link a svg { width: 8px; height: 8px; }
+            .tooltip-quiz-btn { padding: 4px 4px; font-size: 8px; border-radius: 4px; gap: 2px; }
           }
         </style>
         <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDEwtaEWWtkJb6zyIyRQdxPMjmcpasx0H8&callback=initMap" async defer></script>
@@ -690,14 +674,14 @@ export default function SeerahMapScreen() {
             document.getElementById('tooltip-desc').textContent = marker.description || 'Aucune description disponible.';
             document.getElementById('tooltip-image').textContent = categoryIcons[marker.category] || '📍';
 
-            // Position tooltip centered horizontally at top of screen
+            // Position tooltip centered horizontally at top of screen - responsive width
             const mapDiv = document.getElementById('map');
             const mapWidth = mapDiv.offsetWidth;
-            const tooltipWidth = Math.min(300, mapWidth - 24);
+            const tooltipWidth = Math.min(260, mapWidth - 16);
             tooltip.style.width = tooltipWidth + 'px';
             tooltip.style.minWidth = 'auto';
             tooltip.style.left = ((mapWidth - tooltipWidth) / 2) + 'px';
-            tooltip.style.top = '12px';
+            tooltip.style.top = '2px';
             tooltip.classList.add('show');
 
             // Restore previous marker to pin icon
@@ -928,19 +912,20 @@ export default function SeerahMapScreen() {
             border-right: 1px solid #e2e8f0;
           }
 
-          /* Modern Custom Info Window Styles - compact for mobile */
+          /* Modern Custom Info Window Styles - responsive for all screens */
           .custom-info-window {
             background: #ffffff;
-            border-radius: 14px;
-            min-width: 240px;
-            max-width: 300px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2), 0 4px 10px rgba(0,0,0,0.08);
+            border-radius: 12px;
+            min-width: 200px;
+            max-width: min(280px, calc(100vw - 40px));
+            width: min(280px, calc(100vw - 40px));
+            box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08);
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             border: none;
           }
           .info-header {
-            padding: 10px 14px;
+            padding: 8px 10px;
             background: linear-gradient(135deg, #1e3a5f 0%, #0D5C63 50%, #0a4a50 100%);
             position: relative;
             overflow: hidden;
@@ -965,9 +950,9 @@ export default function SeerahMapScreen() {
             background: rgba(255,255,255,0.2);
             backdrop-filter: blur(10px);
             color: white;
-            padding: 4px 10px;
+            padding: 3px 8px;
             border-radius: 20px;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.3px;
@@ -975,49 +960,50 @@ export default function SeerahMapScreen() {
           }
           .info-year {
             color: #fbbf24;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 800;
             text-shadow: 0 1px 3px rgba(0,0,0,0.2);
           }
           .info-location {
-            padding: 8px 14px;
+            padding: 6px 10px;
             background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
             color: #334155;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
             border-bottom: 1px solid #e2e8f0;
           }
           .info-location-icon {
-            font-size: 14px;
+            font-size: 12px;
           }
           .info-counter {
             margin-left: auto;
             color: #64748b;
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 700;
             background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
-            padding: 3px 8px;
+            padding: 2px 6px;
             border-radius: 12px;
+            white-space: nowrap;
           }
           .info-content {
-            padding: 10px 14px;
+            padding: 8px 10px;
             display: flex;
             gap: 10px;
             background: #ffffff;
           }
           .info-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 10px;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
             background: linear-gradient(135deg, #0D5C63 0%, #1e3a5f 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 22px;
-            box-shadow: 0 4px 10px rgba(13, 92, 99, 0.3);
+            font-size: 18px;
+            box-shadow: 0 3px 8px rgba(13, 92, 99, 0.25);
             flex-shrink: 0;
           }
           .info-text {
@@ -1029,9 +1015,9 @@ export default function SeerahMapScreen() {
           }
           .info-title {
             color: #0f172a;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 800;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             line-height: 1.3;
             display: -webkit-box;
             -webkit-line-clamp: 2;
@@ -1040,30 +1026,30 @@ export default function SeerahMapScreen() {
           }
           .info-desc {
             color: #475569;
-            font-size: 12px;
-            line-height: 1.5;
+            font-size: 11px;
+            line-height: 1.4;
             display: -webkit-box;
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
           }
           .info-footer {
-            padding: 8px 14px 10px;
+            padding: 6px 10px 8px;
             background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
           }
           .info-btn {
             width: 100%;
             text-decoration: none;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 700;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
             color: #ffffff;
-            padding: 10px 16px;
-            border-radius: 10px;
+            padding: 8px 12px;
+            border-radius: 8px;
             border: none;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1082,13 +1068,13 @@ export default function SeerahMapScreen() {
           .info-quiz-btn {
             width: 100%;
             text-decoration: none;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             color: #ffffff;
             background: linear-gradient(135deg, #0D5C63 0%, #0a4a50 100%);
             border: none;
-            border-radius: 10px;
-            padding: 8px 14px;
+            border-radius: 8px;
+            padding: 6px 10px;
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -1101,6 +1087,23 @@ export default function SeerahMapScreen() {
           .info-quiz-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 14px rgba(13, 92, 99, 0.35);
+          }
+
+          /* Responsive adjustments for small screens */
+          @media (max-width: 380px) {
+            .custom-info-window { min-width: 180px; max-width: calc(100vw - 32px); }
+            .info-header { padding: 6px 8px; }
+            .info-category { font-size: 9px; padding: 2px 6px; }
+            .info-year { font-size: 12px; }
+            .info-location { padding: 4px 8px; font-size: 10px; }
+            .info-counter { font-size: 8px; padding: 2px 5px; }
+            .info-content { padding: 6px 8px; gap: 6px; }
+            .info-icon { width: 30px; height: 30px; font-size: 15px; border-radius: 6px; }
+            .info-title { font-size: 12px; }
+            .info-desc { font-size: 10px; -webkit-line-clamp: 1; }
+            .info-footer { padding: 5px 8px 6px; }
+            .info-btn { padding: 6px 10px; font-size: 11px; }
+            .info-quiz-btn { padding: 5px 8px; font-size: 10px; }
           }
 
           /* Hide default Google info window styling */
@@ -1290,7 +1293,7 @@ export default function SeerahMapScreen() {
 
               const infoWindow = new google.maps.InfoWindow({
                 content: infoContent,
-                maxWidth: 320,
+                maxWidth: Math.min(280, window.innerWidth - 40),
               });
 
               marker.addListener('click', () => {

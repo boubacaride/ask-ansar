@@ -243,7 +243,7 @@ export default function DuaCategoryDetailScreen() {
           style={styles.gradient}
         >
           <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/sunnah/duas')}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerContent}>
@@ -273,7 +273,7 @@ export default function DuaCategoryDetailScreen() {
           style={styles.gradient}
         >
           <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/sunnah/duas')}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerContent}>
@@ -306,7 +306,7 @@ export default function DuaCategoryDetailScreen() {
         style={styles.gradient}
       >
         <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/sunnah/duas')}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
@@ -629,10 +629,11 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   arabicText: {
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-    fontSize: 20,
-    lineHeight: 36,
+    fontFamily: 'NotoNaskhArabic-Regular',
+    fontSize: 22,
+    lineHeight: 40,
     textAlign: 'right',
+    writingDirection: 'rtl' as const,
   },
   translitSection: {
     paddingHorizontal: 16,
