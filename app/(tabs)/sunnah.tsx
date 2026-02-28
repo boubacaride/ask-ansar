@@ -322,40 +322,17 @@ export default function SunnahScreen() {
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Browse by Topic</Text>
               <View style={styles.CatégoriesGrid}>
                 {HADITH_Catégories.map((category) => (
-                  <React.Fragment key={category.id}>
-                    <TouchableOpacity
-                      style={[styles.categoryCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                      onPress={() => handleCategoryPress(category)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.categoryIcon, { backgroundColor: `${category.color}20` }]}>
-                        <FontAwesome5 name={category.icon as any} size={24} color={category.color} />
-                      </View>
-                      <Text style={[styles.categoryName, { color: colors.text }]}>{category.name}</Text>
-                    </TouchableOpacity>
-                    {category.id === 'prayer' && (
-                      <TouchableOpacity
-                        style={[styles.salahGuideButton, { backgroundColor: colors.card, borderColor: '#9c27b0' }]}
-                        onPress={() => router.push('/(tabs)/sunnah/salah-guide')}
-                        activeOpacity={0.7}
-                      >
-                        <View style={styles.salahGuideContent}>
-                          <View style={[styles.salahGuideIcon, { backgroundColor: 'rgba(156, 39, 176, 0.12)' }]}>
-                            <FontAwesome5 name="book-reader" size={18} color="#9c27b0" />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.salahGuideTitle, { color: colors.text }]}>
-                              Guide Pour Apprendre{'\n'}à Prier Salah
-                            </Text>
-                            <Text style={[styles.salahGuideSubtitle, { color: colors.textSecondary }]}>
-                              دليل تعلم الصلاة
-                            </Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={20} color="#9c27b0" />
-                        </View>
-                      </TouchableOpacity>
-                    )}
-                  </React.Fragment>
+                  <TouchableOpacity
+                    key={category.id}
+                    style={[styles.categoryCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    onPress={() => handleCategoryPress(category)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.categoryIcon, { backgroundColor: `${category.color}20` }]}>
+                      <FontAwesome5 name={category.icon as any} size={24} color={category.color} />
+                    </View>
+                    <Text style={[styles.categoryName, { color: colors.text }]}>{category.name}</Text>
+                  </TouchableOpacity>
                 ))}
               </View>
 
@@ -584,35 +561,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  salahGuideButton: {
-    width: '100%',
-    borderRadius: 14,
-    borderWidth: 2,
-    padding: 14,
-    marginBottom: 4,
-  },
-  salahGuideContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  salahGuideIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  salahGuideTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    lineHeight: 19,
-  },
-  salahGuideSubtitle: {
-    fontSize: 13,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
-    marginTop: 3,
   },
   searchModalContainer: {
     flex: 1,
