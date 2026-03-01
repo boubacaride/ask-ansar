@@ -6,7 +6,7 @@ export type { Dua } from './duaFallbacks';
 
 const DUA_CACHE_PREFIX = 'dua_cache_';
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
-const DUA_CACHE_VERSION = 2; // Bump to invalidate old caches with corrupted UTF-8
+const DUA_CACHE_VERSION = 3; // Bump to invalidate old caches after adding comprehensive dua content
 
 // ── Cache helpers ────────────────────────────────────────────────
 

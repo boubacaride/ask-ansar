@@ -16,6 +16,7 @@ import { fetchDuasByCategory, Dua } from '@/utils/duaUtils';
 import { useSettings } from '@/store/settingsStore';
 import { generateChatResponseStream } from '@/llm';
 import FormattedText from '@/components/FormattedText';
+import { speak, stop, isSpeechAvailable } from '@/utils/speechUtils';
 
 export default function DuaCategoryDetailScreen() {
   const params = useLocalSearchParams<{
@@ -37,6 +38,7 @@ export default function DuaCategoryDetailScreen() {
   const [page, setPage] = useState(0);
   const [detailStates, setDetailStates] = useState<Map<string, { text: string; loading: boolean }>>(new Map());
   const detailAbortRef = useRef<AbortController | null>(null);
+  const [playingDuaId, setPlayingDuaId] = useState<string | null>(null);
 
   const categoryColor = params.categoryColor || '#00796b';
 
@@ -112,6 +114,22 @@ export default function DuaCategoryDetailScreen() {
     }
     text += `\n\n[${dua.reference}]`;
     await Clipboard.setStringAsync(text);
+  };
+
+  const handlePlayAudio = async (dua: Dua) => {
+    if (playingDuaId === dua.id) {
+      await stop();
+      setPlayingDuaId(null);
+      return;
+    }
+
+    setPlayingDuaId(dua.id);
+    await speak(dua.arabicText, {
+      language: 'ar-SA',
+      rate: 0.8,
+      pitch: 1.0,
+    });
+    setPlayingDuaId(null);
   };
 
   const getTranslationText = (dua: Dua): string => {
@@ -472,13 +490,34 @@ export default function DuaCategoryDetailScreen() {
                   <Text style={[styles.referenceText, { color: colors.textSecondary }]} numberOfLines={1}>
                     {dua.reference}
                   </Text>
-                  <TouchableOpacity
-                    style={[styles.actionButton, { borderColor: colors.cardBorder }]}
-                    onPress={() => handleCopy(dua)}
-                  >
-                    <Ionicons name="copy-outline" size={16} color={colors.primary} />
-                    <Text style={[styles.actionButtonText, { color: colors.primary }]}>Copier</Text>
-                  </TouchableOpacity>
+                  <View style={styles.footerActions}>
+                    {isSpeechAvailable() && (
+                      <TouchableOpacity
+                        style={[
+                          styles.actionButton,
+                          { borderColor: playingDuaId === dua.id ? colors.accent : colors.cardBorder },
+                          playingDuaId === dua.id && { backgroundColor: `${colors.accent}15` },
+                        ]}
+                        onPress={() => handlePlayAudio(dua)}
+                      >
+                        <Ionicons
+                          name={playingDuaId === dua.id ? 'stop-circle' : 'volume-high'}
+                          size={16}
+                          color={playingDuaId === dua.id ? colors.accent : colors.primary}
+                        />
+                        <Text style={[styles.actionButtonText, { color: playingDuaId === dua.id ? colors.accent : colors.primary }]}>
+                          {playingDuaId === dua.id ? 'Stop' : '\u00c9couter'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[styles.actionButton, { borderColor: colors.cardBorder }]}
+                      onPress={() => handleCopy(dua)}
+                    >
+                      <Ionicons name="copy-outline" size={16} color={colors.primary} />
+                      <Text style={[styles.actionButtonText, { color: colors.primary }]}>Copier</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -700,8 +739,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  footerActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
   referenceText: {
     fontSize: 12,
