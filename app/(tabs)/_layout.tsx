@@ -172,6 +172,20 @@ export default function TabLayout() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="sunnah/duas/categories"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="sunnah/duas/duascom-category"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

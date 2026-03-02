@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
+import { useQuranBookmarks, QuranBookmark } from '@/store/quranBookmarkStore';
 import { QuranViewer } from '@/components/QuranViewer';
 import { MushafReader } from '@/components/MushafReader';
 import { getSurahVerses } from '@/utils/quranUtils';
@@ -149,6 +150,7 @@ function isFriday(): boolean {
 
 export default function QuranScreen() {
   const { darkMode } = useSettings();
+  const { bookmarks, removeBookmark, lastRead } = useQuranBookmarks();
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   const isSmallScreen = screenWidth < 380;
@@ -157,6 +159,7 @@ export default function QuranScreen() {
   const [selectedSurah, setSelectedSurah] = useState<{ number: number; name: string } | null>(null);
   const [mushafVisible, setMushafVisible] = useState(false);
   const [friday, setFriday] = useState(isFriday());
+  const [showBookmarks, setShowBookmarks] = useState(false);
 
   // Re-check day when app returns to foreground (mobile) or tab regains focus (web)
   // so the correct Mushaf is shown even if the user left the app open overnight
@@ -303,6 +306,106 @@ export default function QuranScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.contentContainer}
         >
+          {/* Continue Reading / Last Position */}
+          {(lastRead.mushafPage > 1 || lastRead.surahNumber) && (
+            <View style={styles.continueReadingSection}>
+              {lastRead.mushafPage > 1 && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setMushafVisible(true)}
+                  style={[styles.continueReadingCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                >
+                  <View style={[styles.continueReadingIcon, { backgroundColor: 'rgba(201, 162, 39, 0.15)' }]}>
+                    <Ionicons name="book" size={20} color={colors.accent} />
+                  </View>
+                  <View style={styles.continueReadingInfo}>
+                    <Text style={[styles.continueReadingTitle, { color: colors.text }]}>Continuer le Mushaf</Text>
+                    <Text style={[styles.continueReadingSubtitle, { color: colors.textSecondary }]}>
+                      Page {lastRead.mushafPage}
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+              {lastRead.surahNumber && lastRead.surahName && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => handleSurahPress({ number: lastRead.surahNumber!, name: lastRead.surahName! })}
+                  style={[styles.continueReadingCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                >
+                  <View style={[styles.continueReadingIcon, { backgroundColor: 'rgba(0, 137, 123, 0.15)' }]}>
+                    <Ionicons name="reader" size={20} color={colors.primary} />
+                  </View>
+                  <View style={styles.continueReadingInfo}>
+                    <Text style={[styles.continueReadingTitle, { color: colors.text }]}>Derni{'\u00e8'}re sourate lue</Text>
+                    <Text style={[styles.continueReadingSubtitle, { color: colors.textSecondary }]}>
+                      {lastRead.surahName}
+                    </Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color={colors.primary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          {/* Signets (Bookmarks) Section */}
+          {bookmarks.length > 0 && (
+            <View style={styles.bookmarksSection}>
+              <TouchableOpacity
+                style={styles.bookmarksSectionHeader}
+                onPress={() => setShowBookmarks(!showBookmarks)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.bookmarksSectionLeft}>
+                  <Ionicons name="bookmark" size={18} color={colors.accent} />
+                  <Text style={[styles.bookmarksSectionTitle, { color: colors.text }]}>
+                    Signets ({bookmarks.length})
+                  </Text>
+                </View>
+                <Ionicons
+                  name={showBookmarks ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              {showBookmarks && (
+                <View style={styles.bookmarksList}>
+                  {bookmarks.map((bookmark) => (
+                    <View
+                      key={bookmark.id}
+                      style={[styles.bookmarkItem, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    >
+                      <TouchableOpacity
+                        style={styles.bookmarkItemContent}
+                        onPress={() => setMushafVisible(true)}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.bookmarkPageBadge, { backgroundColor: colors.primary }]}>
+                          <Text style={styles.bookmarkPageText}>P.{bookmark.page}</Text>
+                        </View>
+                        <View style={styles.bookmarkInfo}>
+                          <Text style={[styles.bookmarkLabel, { color: colors.text }]}>
+                            {bookmark.surahArabicName || 'Page ' + bookmark.page}
+                          </Text>
+                          <Text style={[styles.bookmarkSurahName, { color: colors.textSecondary }]}>
+                            {bookmark.surahName} - Page {bookmark.page}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.bookmarkRemoveBtn}
+                        onPress={() => removeBookmark(bookmark.id)}
+                      >
+                        <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
           <View style={styles.statsRow}>
             <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <Text style={[styles.statNumber, { color: colors.primary }]}>114</Text>
@@ -480,6 +583,101 @@ const styles = StyleSheet.create({
   surahArabic: {
     fontSize: 18,
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  // --- Continue Reading Section ---
+  continueReadingSection: {
+    marginBottom: 8,
+    gap: 8,
+  },
+  continueReadingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  continueReadingIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  continueReadingInfo: {
+    flex: 1,
+  },
+  continueReadingTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  continueReadingSubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  // --- Bookmarks (Signets) Section ---
+  bookmarksSection: {
+    marginBottom: 16,
+  },
+  bookmarksSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+  },
+  bookmarksSectionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bookmarksSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bookmarksList: {
+    marginTop: 8,
+    gap: 8,
+  },
+  bookmarkItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  bookmarkItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  bookmarkPageBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  bookmarkPageText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  bookmarkInfo: {
+    flex: 1,
+  },
+  bookmarkLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+  },
+  bookmarkSurahName: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  bookmarkRemoveBtn: {
+    padding: 4,
   },
   // --- "Lisez le Saint Coran" Banner ---
   readerBannerWrapper: {

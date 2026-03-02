@@ -30,6 +30,11 @@ export default function DuasScreen() {
   };
 
   const handleCategoryPress = (category: typeof DUA_CATEGORIES[number]) => {
+    // "Autres Dou'as" navigates to the Duas.com A-Z categories browser
+    if (category.id === 'misc') {
+      router.push('/(tabs)/sunnah/duas/categories');
+      return;
+    }
     router.push({
       pathname: '/(tabs)/sunnah/duas/[duaCategoryId]',
       params: {

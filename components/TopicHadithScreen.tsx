@@ -253,7 +253,7 @@ export function TopicHadithScreen({
           <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.replace('/(tabs)/sunnah')}
             >
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
@@ -289,7 +289,7 @@ export function TopicHadithScreen({
           <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
             <TouchableOpacity
               style={styles.backButton}
-              onPress={() => router.back()}
+              onPress={() => router.replace('/(tabs)/sunnah')}
             >
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>

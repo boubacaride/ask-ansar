@@ -195,77 +195,179 @@ export async function speak(text: string, options: SpeechOptions = {}): Promise<
   }
 }
 
-// ─── QURAN.COM PRE-RECORDED AUDIO (Mishari Alafasy) ─────────────────
+// ─── QURAN.COM PRE-RECORDED AUDIO (Multiple Reciters) ────────────────
 
-const QURAN_AUDIO_BASE = 'https://verses.quran.com/Alafasy/mp3';
+/** Reciter audio CDN paths keyed by reciter ID */
+export const QURAN_RECITERS = {
+  mishari: {
+    id: 'mishari',
+    label: 'Mishari Rashid al-Afasy',
+    arabicLabel: 'مشاري راشد العفاسي',
+    buildUrl: (s: string, a: string) => `https://verses.quran.com/Alafasy/mp3/${s}${a}.mp3`,
+  },
+  abdulbaset: {
+    id: 'abdulbaset',
+    label: 'AbdulBaset AbdulSamad',
+    arabicLabel: 'عبد الباسط عبد الصمد',
+    buildUrl: (s: string, a: string) => `https://verses.quran.com/AbdulBaset/Murattal/mp3/${s}${a}.mp3`,
+  },
+  husary: {
+    id: 'husary',
+    label: 'Mahmoud Khalil Al-Husary',
+    arabicLabel: 'محمود خليل الحصري',
+    buildUrl: (s: string, a: string) => `https://mirrors.quranicaudio.com/everyayah/Husary_64kbps/${s}${a}.mp3`,
+  },
+} as const;
+
+export type QuranReciterId = keyof typeof QURAN_RECITERS;
 
 /**
- * Build the quran.com audio URL for a specific verse.
- * Format: https://verses.quran.com/Alafasy/mp3/{SSS}{AAA}.mp3
- * where SSS = 3-digit surah number, AAA = 3-digit ayah number.
+ * Build the audio URL for a specific verse and reciter.
+ * Format: {CDN}/{SSS}{AAA}.mp3  where SSS = 3-digit surah, AAA = 3-digit ayah.
  */
-function buildVerseAudioUrl(verseRef: string): string {
+function buildVerseAudioUrl(verseRef: string, reciterId: QuranReciterId = 'mishari'): string {
   const [surah, ayah] = verseRef.split(':').map(Number);
   const s = String(surah).padStart(3, '0');
   const a = String(ayah).padStart(3, '0');
-  return `${QURAN_AUDIO_BASE}/${s}${a}.mp3`;
+  const reciter = QURAN_RECITERS[reciterId] || QURAN_RECITERS.mishari;
+  return reciter.buildUrl(s, a);
 }
 
 /**
- * Play pre-recorded Quran recitation (Mishari Alafasy) for a list of verse references.
- * Each verse is played sequentially from quran.com CDN.
- * Used for Quranic duas that have `verseRefs` — replaces TTS for much better quality.
+ * Preload an HTML Audio element (web only). Returns a ready-to-play Audio.
  */
-export async function playQuranVerseAudio(verseRefs: string[]): Promise<void> {
-  console.log(`[Speech] Quran audio: playing ${verseRefs.length} verse(s) from quran.com`);
+function preloadWebAudio(url: string): Promise<HTMLAudioElement> {
+  return new Promise((resolve, reject) => {
+    const audio = new window.Audio();
+    audio.preload = 'auto';
+    let settled = false;
+    audio.oncanplaythrough = () => { if (!settled) { settled = true; resolve(audio); } };
+    audio.onerror = () => { if (!settled) { settled = true; reject(new Error('preload failed')); } };
+    audio.src = url;
+    audio.load();
+    // Timeout: resolve even if canplaythrough hasn't fired (some browsers)
+    setTimeout(() => { if (!settled) { settled = true; resolve(audio); } }, 8000);
+  });
+}
+
+/**
+ * Play pre-recorded Quran recitation for a list of verse references.
+ * Uses prefetch pipeline: preloads the next verse while current plays for gapless audio.
+ * Supports multiple reciters: Mishari, AbdulBaset (Murattal), Al-Husary.
+ */
+export async function playQuranVerseAudio(verseRefs: string[], reciterId: QuranReciterId = 'mishari'): Promise<void> {
+  console.log(`[Speech] Quran audio: playing ${verseRefs.length} verse(s), reciter: ${reciterId}`);
   await stop();
   _stopRequested = false;
 
-  for (let i = 0; i < verseRefs.length; i++) {
-    if (_stopRequested) {
-      console.log('[Speech] Quran audio: stop requested, aborting');
-      return;
-    }
+  // Build all URLs upfront
+  const urls = verseRefs.map((ref) => buildVerseAudioUrl(ref, reciterId));
 
-    const url = buildVerseAudioUrl(verseRefs[i]);
-    console.log(`[Speech] Quran verse ${i + 1}/${verseRefs.length}: ${verseRefs[i]} → ${url}`);
+  if (Platform.OS === 'web') {
+    // ── Web: preload-ahead pipeline ──
+    // Preload first verse immediately, and prefetch next while current plays
+    let preloaded: HTMLAudioElement | null = null;
+    try { preloaded = await preloadWebAudio(urls[0]); } catch (e) { /* will try inline */ }
 
-    if (Platform.OS === 'web') {
-      await playHtmlAudio(url);
-    } else {
-      // Native: play via expo-av
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
+    for (let i = 0; i < urls.length; i++) {
+      if (_stopRequested) return;
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: true, volume: 1.0 }
-      );
-      currentSound = sound;
+      // Start preloading the NEXT verse in background
+      let nextPreload: Promise<HTMLAudioElement> | null = null;
+      if (i + 1 < urls.length) {
+        nextPreload = preloadWebAudio(urls[i + 1]).catch(() => null as any);
+      }
 
-      await new Promise<void>((resolve) => {
-        let resolved = false;
-        const done = () => { if (!resolved) { resolved = true; resolve(); } };
+      // Play current verse
+      const audioEl = preloaded || await preloadWebAudio(urls[i]).catch(() => null);
+      preloaded = null;
 
-        sound.setOnPlaybackStatusUpdate((status) => {
-          if (status.isLoaded && status.didJustFinish) {
-            console.log(`[Speech] Quran verse ${i + 1} finished`);
-            done();
-          }
-          if (!status.isLoaded && (status as any).error) {
-            console.warn('[Speech] Quran playback error:', (status as any).error);
-            done();
-          }
+      if (audioEl && !_stopRequested) {
+        // Cleanup previous
+        if (currentAudioEl) {
+          currentAudioEl.pause();
+          currentAudioEl.removeAttribute('src');
+        }
+        currentAudioEl = audioEl;
+
+        await new Promise<void>((resolve) => {
+          let done = false;
+          const finish = () => { if (!done) { done = true; resolve(); } };
+          audioEl.onended = finish;
+          audioEl.onerror = finish;
+          audioEl.play().catch(finish);
+          setTimeout(finish, 60000);
         });
 
-        setTimeout(() => done(), 30000);
+        currentAudioEl = null;
+      }
+
+      // Grab the preloaded next verse (should be ready by now)
+      if (nextPreload) {
+        preloaded = await nextPreload;
+      }
+    }
+  } else {
+    // ── Native: expo-av with preload-ahead ──
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: true,
+    });
+
+    let preloadedSound: Audio.Sound | null = null;
+
+    for (let i = 0; i < urls.length; i++) {
+      if (_stopRequested) {
+        if (preloadedSound) { try { await preloadedSound.unloadAsync(); } catch (e) {} }
+        return;
+      }
+
+      // Start preloading next verse in background
+      let nextPreload: Promise<{ sound: Audio.Sound }> | null = null;
+      if (i + 1 < urls.length) {
+        nextPreload = Audio.Sound.createAsync(
+          { uri: urls[i + 1] },
+          { shouldPlay: false, volume: 1.0 }
+        ).catch(() => null as any);
+      }
+
+      // Use preloaded sound or create fresh
+      let sound: Audio.Sound;
+      if (preloadedSound) {
+        sound = preloadedSound;
+        preloadedSound = null;
+        await sound.playAsync();
+      } else {
+        const result = await Audio.Sound.createAsync(
+          { uri: urls[i] },
+          { shouldPlay: true, volume: 1.0 }
+        );
+        sound = result.sound;
+      }
+      currentSound = sound;
+
+      // Wait for playback to finish
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = () => { if (!done) { done = true; resolve(); } };
+
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) finish();
+          if (!status.isLoaded && (status as any).error) finish();
+        });
+
+        setTimeout(finish, 60000);
       });
 
-      try { await sound.unloadAsync(); } catch (e) { /* ignore */ }
+      try { await sound.unloadAsync(); } catch (e) {}
       currentSound = null;
+
+      // Grab preloaded next sound
+      if (nextPreload) {
+        const result = await nextPreload;
+        preloadedSound = result?.sound || null;
+      }
     }
   }
 

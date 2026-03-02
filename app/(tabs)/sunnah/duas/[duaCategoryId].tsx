@@ -13,11 +13,11 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { fetchDuasByCategory, Dua, CATEGORY_DESCRIPTIONS } from '@/utils/duaUtils';
+import { fetchDuasByCategory, Dua, CATEGORY_DESCRIPTIONS, getVerseRefsForDua } from '@/utils/duaUtils';
 import { useSettings } from '@/store/settingsStore';
 import { generateChatResponseStream } from '@/llm';
 import FormattedText from '@/components/FormattedText';
-import { speak, stop, isSpeechAvailable, playQuranVerseAudio } from '@/utils/speechUtils';
+import { speak, stop, isSpeechAvailable, playQuranVerseAudio, QURAN_RECITERS, QuranReciterId } from '@/utils/speechUtils';
 
 export default function DuaCategoryDetailScreen() {
   const params = useLocalSearchParams<{
@@ -42,21 +42,21 @@ export default function DuaCategoryDetailScreen() {
   const [playingDuaId, setPlayingDuaId] = useState<string | null>(null);
   const [expandedBenefits, setExpandedBenefits] = useState<Set<string>>(new Set());
   const [selectedSpeed, setSelectedSpeed] = useState<'slow' | 'medium' | 'fast'>('medium');
-  const [selectedVoice, setSelectedVoice] = useState<'female' | 'male' | 'mishari'>('female');
+  const [selectedReciter, setSelectedReciter] = useState<QuranReciterId>('mishari');
   const [generatingMishari, setGeneratingMishari] = useState(false);
   const [speedDropdownOpen, setSpeedDropdownOpen] = useState(false);
-  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [reciterDropdownOpen, setReciterDropdownOpen] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [expandedDescSections, setExpandedDescSections] = useState<Set<number>>(new Set([0]));
 
   const categoryDescription = CATEGORY_DESCRIPTIONS[params.duaCategoryId];
 
   const SPEED_LABELS: Record<string, string> = { slow: 'Lent', medium: 'Moyen', fast: 'Rapide' };
-  const VOICE_LABELS: Record<string, string> = {
-    female: 'Femme (Fatima)',
-    male: 'Homme (Abu)',
-    mishari: 'Homme (Mishari)',
-  };
+  const RECITER_OPTIONS: { id: QuranReciterId; label: string; shortLabel: string }[] = [
+    { id: 'mishari', label: QURAN_RECITERS.mishari.label, shortLabel: 'Mishari' },
+    { id: 'abdulbaset', label: QURAN_RECITERS.abdulbaset.label, shortLabel: 'AbdulBaset' },
+    { id: 'husary', label: QURAN_RECITERS.husary.label, shortLabel: 'Al-Husary' },
+  ];
 
   const categoryColor = params.categoryColor || '#00796b';
 
@@ -137,7 +137,7 @@ export default function DuaCategoryDetailScreen() {
   const SPEED_MAP = { slow: 0.3, medium: 0.5, fast: 0.7 };
 
   const handlePlayAudio = async (dua: Dua) => {
-    console.log('[Audio] handlePlayAudio called, dua:', dua.id, 'speed:', selectedSpeed, 'voice:', selectedVoice);
+    console.log('[Audio] handlePlayAudio called, dua:', dua.id, 'reciter:', selectedReciter);
     if (playingDuaId === dua.id) {
       console.log('[Audio] Stopping current playback');
       await stop();
@@ -148,17 +148,21 @@ export default function DuaCategoryDetailScreen() {
     try {
       setPlayingDuaId(dua.id);
 
-      if (dua.verseRefs && dua.verseRefs.length > 0) {
-        // Pre-recorded Quran recitation (Mishari Alafasy from quran.com)
-        console.log('[Audio] Using quran.com pre-recorded audio for', dua.id);
-        await playQuranVerseAudio(dua.verseRefs);
+      // Get verse refs from explicit field or auto-parse from Quranic reference
+      const verseRefs = getVerseRefsForDua(dua);
+
+      if (verseRefs.length > 0) {
+        // Pre-recorded Quran recitation from selected reciter
+        console.log('[Audio] Using pre-recorded audio for', dua.id, 'verseRefs:', verseRefs, 'reciter:', selectedReciter);
+        await playQuranVerseAudio(verseRefs, selectedReciter);
       } else {
-        // TTS fallback for non-Quranic duas
-        if (selectedVoice === 'mishari') setGeneratingMishari(true);
+        // TTS fallback for non-Quranic duas (Mishari voice clone)
+        console.log('[Audio] No verse refs, using TTS for', dua.id);
+        setGeneratingMishari(true);
         await speak(dua.arabicText, {
           language: 'ar',
           rate: SPEED_MAP[selectedSpeed],
-          gender: selectedVoice === 'mishari' ? 'mishari' : selectedVoice === 'male' ? 'male' : 'female',
+          gender: 'mishari',
         });
       }
       console.log('[Audio] Audio finished for:', dua.id);
@@ -304,7 +308,7 @@ export default function DuaCategoryDetailScreen() {
           style={[styles.dropdownTrigger, { borderColor: colors.primary, backgroundColor: colors.inputBg }]}
           onPress={() => {
             setSpeedDropdownOpen(!speedDropdownOpen);
-            setVoiceDropdownOpen(false);
+            setReciterDropdownOpen(false);
           }}
           activeOpacity={0.7}
         >
@@ -349,59 +353,55 @@ export default function DuaCategoryDetailScreen() {
         )}
       </View>
 
-      {/* Voix dropdown */}
-      <View style={[styles.dropdownWrapper, { zIndex: voiceDropdownOpen ? 20 : 10 }]}>
+      {/* Reciter dropdown */}
+      <View style={[styles.dropdownWrapper, { zIndex: reciterDropdownOpen ? 20 : 10 }]}>
         <TouchableOpacity
           style={[styles.dropdownTrigger, { borderColor: colors.primary, backgroundColor: colors.inputBg }]}
           onPress={() => {
-            setVoiceDropdownOpen(!voiceDropdownOpen);
+            setReciterDropdownOpen(!reciterDropdownOpen);
             setSpeedDropdownOpen(false);
           }}
           activeOpacity={0.7}
         >
-          <Ionicons
-            name={selectedVoice === 'female' ? 'woman' : 'man'}
-            size={15}
-            color={colors.primary}
-          />
-          <Text style={[styles.dropdownTriggerText, { color: colors.text }]}>
-            {VOICE_LABELS[selectedVoice]}
+          <Ionicons name="mic" size={15} color={colors.primary} />
+          <Text style={[styles.dropdownTriggerText, { color: colors.text }]} numberOfLines={1}>
+            {RECITER_OPTIONS.find(r => r.id === selectedReciter)?.shortLabel || 'Mishari'}
           </Text>
           <Ionicons
-            name={voiceDropdownOpen ? 'chevron-up' : 'chevron-down'}
+            name={reciterDropdownOpen ? 'chevron-up' : 'chevron-down'}
             size={14}
             color={colors.textSecondary}
           />
         </TouchableOpacity>
-        {voiceDropdownOpen && (
+        {reciterDropdownOpen && (
           <View style={[styles.dropdownList, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
-            {(['female', 'male', 'mishari'] as const).map((voice) => (
+            {RECITER_OPTIONS.map((reciter) => (
               <TouchableOpacity
-                key={voice}
+                key={reciter.id}
                 style={[
                   styles.dropdownItem,
-                  selectedVoice === voice && { backgroundColor: `${colors.primary}15` },
+                  selectedReciter === reciter.id && { backgroundColor: `${colors.primary}15` },
                 ]}
                 onPress={() => {
-                  setSelectedVoice(voice);
-                  setVoiceDropdownOpen(false);
+                  setSelectedReciter(reciter.id);
+                  setReciterDropdownOpen(false);
                 }}
                 activeOpacity={0.7}
               >
                 <Ionicons
-                  name={voice === 'female' ? 'woman' : voice === 'mishari' ? 'mic' : 'man'}
+                  name="mic"
                   size={14}
-                  color={selectedVoice === voice ? colors.primary : colors.textSecondary}
+                  color={selectedReciter === reciter.id ? colors.primary : colors.textSecondary}
                   style={{ marginRight: 6 }}
                 />
                 <Text style={[
                   styles.dropdownItemText,
-                  { color: selectedVoice === voice ? colors.primary : colors.text, flex: 1 },
-                  selectedVoice === voice && { fontWeight: '700' },
-                ]}>
-                  {VOICE_LABELS[voice]}
+                  { color: selectedReciter === reciter.id ? colors.primary : colors.text, flex: 1 },
+                  selectedReciter === reciter.id && { fontWeight: '700' },
+                ]} numberOfLines={1}>
+                  {reciter.label}
                 </Text>
-                {selectedVoice === voice && (
+                {selectedReciter === reciter.id && (
                   <Ionicons name="checkmark" size={16} color={colors.primary} />
                 )}
               </TouchableOpacity>
@@ -783,8 +783,8 @@ export default function DuaCategoryDetailScreen() {
                             ? 'Génération...'
                             : playingDuaId === dua.id
                               ? 'Stop'
-                              : dua.verseRefs && dua.verseRefs.length > 0
-                                ? 'Récitateur'
+                              : getVerseRefsForDua(dua).length > 0
+                                ? 'Écouter'
                                 : 'Écouter'}
                         </Text>
                       </TouchableOpacity>

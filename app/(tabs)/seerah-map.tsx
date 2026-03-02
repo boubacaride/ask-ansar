@@ -642,6 +642,13 @@ export default function SeerahMapScreen() {
               markerObjects.push({ marker: gmMarker, data: marker });
             });
 
+            // Reposition tooltip when map moves so it stays above camel marker
+            map.addListener('bounds_changed', function() {
+              if (activeMarkerIndex >= 0 && tooltip.classList.contains('show')) {
+                repositionTooltip(activeMarkerIndex);
+              }
+            });
+
             window.ReactNativeWebView?.postMessage(JSON.stringify({ type: 'mapReady' }));
 
             // Auto-select first event
@@ -656,6 +663,29 @@ export default function SeerahMapScreen() {
                 }));
               }, 1000);
             }
+          }
+
+          function repositionTooltip(idx) {
+            const marker = markers[idx];
+            if (!marker) return;
+            try {
+              const projection = map.getProjection();
+              const bounds = map.getBounds();
+              if (!projection || !bounds) return;
+              const mapDiv = document.getElementById('map');
+              const mapWidth = mapDiv.offsetWidth;
+              const tooltipWidth = Math.min(260, mapWidth - 16);
+              const scale = Math.pow(2, map.getZoom());
+              const ne = projection.fromLatLngToPoint(bounds.getNorthEast());
+              const sw = projection.fromLatLngToPoint(bounds.getSouthWest());
+              const point = projection.fromLatLngToPoint(new google.maps.LatLng(marker.lat, marker.lng));
+              const pixelX = (point.x - sw.x) * scale;
+              const pixelY = (point.y - ne.y) * scale;
+              const tooltipLeft = Math.max(4, Math.min(pixelX - tooltipWidth / 2, mapWidth - tooltipWidth - 4));
+              const tooltipTop = Math.max(4, pixelY - 155);
+              tooltip.style.left = tooltipLeft + 'px';
+              tooltip.style.top = tooltipTop + 'px';
+            } catch(e) {}
           }
 
           function showTooltipForMarker(idx) {
@@ -674,14 +704,41 @@ export default function SeerahMapScreen() {
             document.getElementById('tooltip-desc').textContent = marker.description || 'Aucune description disponible.';
             document.getElementById('tooltip-image').textContent = categoryIcons[marker.category] || '📍';
 
-            // Position tooltip centered horizontally at top of screen - responsive width
+            // Position tooltip above the camel marker icon
             const mapDiv = document.getElementById('map');
             const mapWidth = mapDiv.offsetWidth;
             const tooltipWidth = Math.min(260, mapWidth - 16);
             tooltip.style.width = tooltipWidth + 'px';
             tooltip.style.minWidth = 'auto';
-            tooltip.style.left = ((mapWidth - tooltipWidth) / 2) + 'px';
-            tooltip.style.top = '2px';
+
+            // Get marker pixel position on screen using Google Maps projection
+            try {
+              const projection = map.getProjection();
+              const bounds = map.getBounds();
+              if (projection && bounds) {
+                const scale = Math.pow(2, map.getZoom());
+                const ne = projection.fromLatLngToPoint(bounds.getNorthEast());
+                const sw = projection.fromLatLngToPoint(bounds.getSouthWest());
+                const point = projection.fromLatLngToPoint(new google.maps.LatLng(marker.lat, marker.lng));
+
+                // Calculate pixel position relative to map container
+                const pixelX = (point.x - sw.x) * scale;
+                const pixelY = (point.y - ne.y) * scale;
+
+                // Position tooltip centered above the camel icon (120px tall)
+                const tooltipLeft = Math.max(4, Math.min(pixelX - tooltipWidth / 2, mapWidth - tooltipWidth - 4));
+                const tooltipTop = Math.max(4, pixelY - 155);
+
+                tooltip.style.left = tooltipLeft + 'px';
+                tooltip.style.top = tooltipTop + 'px';
+              } else {
+                throw new Error('no projection');
+              }
+            } catch(e) {
+              // Fallback: center horizontally, place above center of map
+              tooltip.style.left = ((mapWidth - tooltipWidth) / 2) + 'px';
+              tooltip.style.top = '2px';
+            }
             tooltip.classList.add('show');
 
             // Restore previous marker to pin icon

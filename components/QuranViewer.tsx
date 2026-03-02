@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '@/store/settingsStore';
+import { useQuranBookmarks } from '@/store/quranBookmarkStore';
 import { getSurahVerses, SurahData, QuranVerse } from '@/utils/quranUtils';
 import * as Clipboard from 'expo-clipboard';
 import { speak } from '@/utils/speechUtils';
@@ -29,6 +30,7 @@ type LanguageTab = 'arabic' | 'french' | 'english';
 
 export function QuranViewer({ visible, surahNumber, surahName, onClose }: QuranViewerProps) {
   const { darkMode } = useSettings();
+  const { setLastReadSurah } = useQuranBookmarks();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [surahData, setSurahData] = useState<SurahData | null>(null);
@@ -76,6 +78,7 @@ export function QuranViewer({ visible, surahNumber, surahName, onClose }: QuranV
   useEffect(() => {
     if (visible && surahNumber) {
       loadSurahVerses();
+      setLastReadSurah(surahNumber, surahName);
     }
   }, [visible, surahNumber]);
 

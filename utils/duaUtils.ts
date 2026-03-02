@@ -4,9 +4,45 @@ import { Dua, getFallbackDuas } from './duaFallbacks';
 
 export type { Dua } from './duaFallbacks';
 
+/**
+ * Parse a Quranic reference string into an array of "surah:ayah" verse refs.
+ * Handles formats like:
+ *   "Coran 2:255"       → ["2:255"]
+ *   "Coran 2:284-286"   → ["2:284","2:285","2:286"]
+ *   "Coran 112:1-4"     → ["112:1","112:2","112:3","112:4"]
+ *   "Quran 1:1-7"       → ["1:1","1:2","1:3","1:4","1:5","1:6","1:7"]
+ * Returns empty array for non-Quranic references (hadiths, etc).
+ */
+export function parseQuranReference(reference: string): string[] {
+  // Match "Coran X:Y" or "Coran X:Y-Z" or "Quran X:Y" or "Quran X:Y-Z"
+  const match = reference.match(/(?:Coran|Quran|Qur'?an)\s+(\d+):(\d+)(?:\s*[-–]\s*(\d+))?/i);
+  if (!match) return [];
+
+  const surah = parseInt(match[1], 10);
+  const startAyah = parseInt(match[2], 10);
+  const endAyah = match[3] ? parseInt(match[3], 10) : startAyah;
+
+  if (isNaN(surah) || isNaN(startAyah) || isNaN(endAyah)) return [];
+  if (endAyah < startAyah || endAyah - startAyah > 300) return []; // sanity check
+
+  const refs: string[] = [];
+  for (let a = startAyah; a <= endAyah; a++) {
+    refs.push(`${surah}:${a}`);
+  }
+  return refs;
+}
+
+/**
+ * Returns the verse refs for a dua — either from the explicit field or auto-parsed from reference.
+ */
+export function getVerseRefsForDua(dua: { verseRefs?: string[]; reference: string }): string[] {
+  if (dua.verseRefs && dua.verseRefs.length > 0) return dua.verseRefs;
+  return parseQuranReference(dua.reference);
+}
+
 const DUA_CACHE_PREFIX = 'dua_cache_';
 const CACHE_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
-const DUA_CACHE_VERSION = 7; // Bump to invalidate old caches after adding verseRefs for quran.com audio
+const DUA_CACHE_VERSION = 8; // v8: auto-parse Quranic refs from reference field + CDN pre-recorded audio
 
 // ── Cache helpers ────────────────────────────────────────────────
 
@@ -97,6 +133,9 @@ export async function fetchDuasByCategory(
         transliteration: row.transliteration || '',
         reference: row.reference || '',
         repetitions: row.repetitions || 1,
+        benefit: row.benefit || undefined,
+        recommendedFor: row.recommended_for || undefined,
+        verseRefs: row.verse_refs || undefined,
       }));
 
       if (offset === 0) {
@@ -159,7 +198,7 @@ export const DUA_CATEGORIES: DuaCategory[] = [
   { id: 'death', label: 'D\u00e9c\u00e8s & Fun\u00e9railles', icon: 'flower-tulip', color: '#8D6E63', iconFamily: 'MaterialCommunityIcons' },
   { id: 'toilet', label: 'Entr\u00e9e/Sortie Toilettes', icon: 'door', color: '#90A4AE', iconFamily: 'MaterialCommunityIcons' },
   { id: 'ruqyah', label: 'Roqya', icon: 'leaf', color: '#00897B', iconFamily: 'MaterialCommunityIcons' },
-  { id: 'misc', label: "Autres Dou'as", icon: 'dots-horizontal', color: '#757575', iconFamily: 'MaterialCommunityIcons' },
+  { id: 'misc', label: "Autres Dou'as (A-Z)", icon: 'format-list-bulleted', color: '#8DB600', iconFamily: 'MaterialCommunityIcons' },
 ];
 
 export interface CategoryDescription {

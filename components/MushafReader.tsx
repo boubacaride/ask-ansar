@@ -18,6 +18,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '@/store/settingsStore';
+import { useQuranBookmarks } from '@/store/quranBookmarkStore';
 import { generateFlipbookHtml } from './mushafFlipbookHtml';
 import ShareModal from './ShareModal';
 
@@ -166,20 +167,84 @@ interface MushafReaderProps {
 
 export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl, isFriday = false }: MushafReaderProps) {
   const { darkMode } = useSettings();
+
+  // Read bookmark actions via stable selectors (these never change, so no re-renders)
+  const addBookmark = useQuranBookmarks((s) => s.addBookmark);
+  const removeBookmark = useQuranBookmarks((s) => s.removeBookmark);
+  const bookmarks = useQuranBookmarks((s) => s.bookmarks);
+
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-  const [currentPage, setCurrentPage] = useState(initialPage);
+
+  // Compute initial page ONCE at mount time (non-reactive read from store)
+  const [effectiveInitialPage] = useState(() => {
+    const saved = useQuranBookmarks.getState().lastRead.mushafPage;
+    return initialPage === 1 && saved > 1 ? saved : initialPage;
+  });
+
+  const [currentPage, setCurrentPage] = useState(effectiveInitialPage);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const webViewRef = useRef<any>(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [shareText, setShareText] = useState('');
+  const [bookmarkToast, setBookmarkToast] = useState<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Generate HTML content
+  // Generate HTML content - effectiveInitialPage is now stable (computed once)
   const htmlContent = useMemo(
-    () => generateFlipbookHtml(SURAH_PAGES, darkMode, initialPage, pdfUrl, isFriday),
-    [darkMode, initialPage, pdfUrl, isFriday]
+    () => generateFlipbookHtml(SURAH_PAGES, darkMode, effectiveInitialPage, pdfUrl, isFriday),
+    [darkMode, effectiveInitialPage, pdfUrl, isFriday]
   );
 
   const currentSurah = getSurahForPage(currentPage);
+  const currentPageBookmarked = useMemo(
+    () => bookmarks.some((b) => b.type === 'mushaf' && b.page === currentPage),
+    [bookmarks, currentPage]
+  );
+
+  // Debounced auto-save: only persist after 2s of no page changes (avoids AsyncStorage storm)
+  useEffect(() => {
+    if (visible && currentPage > 0 && !isFriday) {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        useQuranBookmarks.getState().setLastReadMushafPage(currentPage);
+      }, 2000);
+    }
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, [currentPage, visible, isFriday]);
+
+  // Toggle bookmark for current page
+  const handleToggleBookmark = () => {
+    if (currentPageBookmarked) {
+      const existing = bookmarks.find((b) => b.type === 'mushaf' && b.page === currentPage);
+      if (existing) {
+        removeBookmark(existing.id);
+        setBookmarkToast('Signet supprimé');
+      }
+    } else {
+      const surah = getSurahForPage(currentPage);
+      addBookmark({
+        type: 'mushaf',
+        page: currentPage,
+        surahName: surah.name,
+        surahArabicName: surah.arabicName,
+        label: `Page ${currentPage} - ${surah.arabicName}`,
+      });
+      setBookmarkToast('Signet ajouté');
+    }
+    // Clear toast after 2 seconds
+    setTimeout(() => setBookmarkToast(null), 2000);
+  };
+
+  // Handle close: save position immediately then close
+  const handleClose = () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    if (!isFriday) {
+      useQuranBookmarks.getState().setLastReadMushafPage(currentPage);
+    }
+    onClose();
+  };
 
   // Handle messages from WebView/iframe
   const handleMessage = useCallback((event: any) => {
@@ -286,23 +351,39 @@ export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl, isFrid
 
   if (!visible) return null;
 
+  // Bookmark toast component
+  const renderBookmarkToast = () => {
+    if (!bookmarkToast) return null;
+    return (
+      <View style={styles.bookmarkToast}>
+        <Ionicons name="bookmark" size={16} color="#fff" />
+        <Text style={styles.bookmarkToastText}>{bookmarkToast}</Text>
+      </View>
+    );
+  };
+
   // ─── Web: Use iframe ───
   if (Platform.OS === 'web') {
     return (
-      <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
         <SafeAreaView style={[styles.container, { backgroundColor: darkMode ? '#0a0a0a' : '#f5f0e8' }]}>
           {/* Header */}
           <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : (isFriday ? '#5D4037' : '#1b5e20') }]}>
-            <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
+            <TouchableOpacity onPress={handleClose} style={styles.headerBtn}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>المصحف الشريف</Text>
               <Text style={styles.headerSubtitle}>{currentSurah.arabicName} - Page {currentPage}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
-              <Ionicons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <TouchableOpacity onPress={handleToggleBookmark} style={styles.headerBtn}>
+                <Ionicons name={currentPageBookmarked ? 'bookmark' : 'bookmark-outline'} size={22} color={currentPageBookmarked ? '#fbbf24' : '#fff'} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleClose} style={styles.headerBtn}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Flipbook iframe */}
@@ -318,6 +399,7 @@ export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl, isFrid
               sandbox="allow-scripts allow-same-origin allow-popups"
             />
           </View>
+          {renderBookmarkToast()}
         </SafeAreaView>
         <ShareModal
           visible={shareModalVisible}
@@ -333,20 +415,25 @@ export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl, isFrid
   const WebView = require('react-native-webview').default;
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={handleClose}>
       <SafeAreaView style={[styles.container, { backgroundColor: darkMode ? '#0a0a0a' : '#f5f0e8' }]}>
         {/* Header */}
         <View style={[styles.header, { backgroundColor: darkMode ? '#1a1a2e' : (isFriday ? '#5D4037' : '#1b5e20') }]}>
-          <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
+          <TouchableOpacity onPress={handleClose} style={styles.headerBtn}>
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
             <Text style={styles.headerTitle}>المصحف الشريف</Text>
             <Text style={styles.headerSubtitle}>{currentSurah.arabicName} - Page {currentPage}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.headerBtn}>
-            <Ionicons name="close" size={24} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleToggleBookmark} style={styles.headerBtn}>
+              <Ionicons name={currentPageBookmarked ? 'bookmark' : 'bookmark-outline'} size={22} color={currentPageBookmarked ? '#fbbf24' : '#fff'} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleClose} style={styles.headerBtn}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Flipbook WebView */}
@@ -375,6 +462,7 @@ export function MushafReader({ visible, onClose, initialPage = 1, pdfUrl, isFrid
             </View>
           )}
         />
+        {renderBookmarkToast()}
       </SafeAreaView>
       <ShareModal
         visible={shareModalVisible}
@@ -411,6 +499,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
@@ -443,6 +536,23 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#00897b',
+    fontWeight: '600',
+  },
+  bookmarkToast: {
+    position: 'absolute',
+    bottom: 80,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 8,
+  },
+  bookmarkToastText: {
+    color: '#ffffff',
+    fontSize: 14,
     fontWeight: '600',
   },
 });
