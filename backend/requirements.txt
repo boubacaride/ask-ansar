@@ -1,0 +1,9 @@
+coqui-tts>=0.27.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+pydub>=0.25.1
+requests>=2.31.0
+numpy>=1.24.0
+torch>=2.0.0
+torchaudio>=2.0.0

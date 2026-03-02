@@ -18,6 +18,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
 import { HadithViewer } from '@/components/HadithViewer';
 import { SeerahCard } from '@/components/SeerahCard';
+import DuaHandsIcon from '@/components/DuaHandsIcon';
+import SujoodIcon from '@/components/SujoodIcon';
 import { SeerahMapCard } from '@/components/SeerahMapCard';
 import { SeerahReader } from '@/components/SeerahReader';
 import { HadithSearch } from '@/components/HadithSearch';
@@ -329,7 +331,13 @@ export default function SunnahScreen() {
                     activeOpacity={0.7}
                   >
                     <View style={[styles.categoryIcon, { backgroundColor: `${category.color}20` }]}>
-                      <FontAwesome5 name={category.icon as any} size={24} color={category.color} />
+                      {category.id === 'duas' ? (
+                        <DuaHandsIcon size={28} color={category.color} />
+                      ) : category.id === 'prayer' ? (
+                        <SujoodIcon size={28} color={category.color} />
+                      ) : (
+                        <FontAwesome5 name={category.icon as any} size={24} color={category.color} />
+                      )}
                     </View>
                     <Text style={[styles.categoryName, { color: colors.text }]}>{category.name}</Text>
                   </TouchableOpacity>

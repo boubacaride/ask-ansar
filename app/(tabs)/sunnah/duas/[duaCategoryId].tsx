@@ -7,16 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { fetchDuasByCategory, Dua } from '@/utils/duaUtils';
+import { fetchDuasByCategory, Dua, CATEGORY_DESCRIPTIONS } from '@/utils/duaUtils';
 import { useSettings } from '@/store/settingsStore';
 import { generateChatResponseStream } from '@/llm';
 import FormattedText from '@/components/FormattedText';
-import { speak, stop, isSpeechAvailable } from '@/utils/speechUtils';
+import { speak, stop, isSpeechAvailable, playQuranVerseAudio } from '@/utils/speechUtils';
 
 export default function DuaCategoryDetailScreen() {
   const params = useLocalSearchParams<{
@@ -39,6 +40,23 @@ export default function DuaCategoryDetailScreen() {
   const [detailStates, setDetailStates] = useState<Map<string, { text: string; loading: boolean }>>(new Map());
   const detailAbortRef = useRef<AbortController | null>(null);
   const [playingDuaId, setPlayingDuaId] = useState<string | null>(null);
+  const [expandedBenefits, setExpandedBenefits] = useState<Set<string>>(new Set());
+  const [selectedSpeed, setSelectedSpeed] = useState<'slow' | 'medium' | 'fast'>('medium');
+  const [selectedVoice, setSelectedVoice] = useState<'female' | 'male' | 'mishari'>('female');
+  const [generatingMishari, setGeneratingMishari] = useState(false);
+  const [speedDropdownOpen, setSpeedDropdownOpen] = useState(false);
+  const [voiceDropdownOpen, setVoiceDropdownOpen] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [expandedDescSections, setExpandedDescSections] = useState<Set<number>>(new Set([0]));
+
+  const categoryDescription = CATEGORY_DESCRIPTIONS[params.duaCategoryId];
+
+  const SPEED_LABELS: Record<string, string> = { slow: 'Lent', medium: 'Moyen', fast: 'Rapide' };
+  const VOICE_LABELS: Record<string, string> = {
+    female: 'Femme (Fatima)',
+    male: 'Homme (Abu)',
+    mishari: 'Homme (Mishari)',
+  };
 
   const categoryColor = params.categoryColor || '#00796b';
 
@@ -116,20 +134,45 @@ export default function DuaCategoryDetailScreen() {
     await Clipboard.setStringAsync(text);
   };
 
+  const SPEED_MAP = { slow: 0.3, medium: 0.5, fast: 0.7 };
+
   const handlePlayAudio = async (dua: Dua) => {
+    console.log('[Audio] handlePlayAudio called, dua:', dua.id, 'speed:', selectedSpeed, 'voice:', selectedVoice);
     if (playingDuaId === dua.id) {
+      console.log('[Audio] Stopping current playback');
       await stop();
       setPlayingDuaId(null);
       return;
     }
 
-    setPlayingDuaId(dua.id);
-    await speak(dua.arabicText, {
-      language: 'ar-SA',
-      rate: 0.8,
-      pitch: 1.0,
-    });
-    setPlayingDuaId(null);
+    try {
+      setPlayingDuaId(dua.id);
+
+      if (dua.verseRefs && dua.verseRefs.length > 0) {
+        // Pre-recorded Quran recitation (Mishari Alafasy from quran.com)
+        console.log('[Audio] Using quran.com pre-recorded audio for', dua.id);
+        await playQuranVerseAudio(dua.verseRefs);
+      } else {
+        // TTS fallback for non-Quranic duas
+        if (selectedVoice === 'mishari') setGeneratingMishari(true);
+        await speak(dua.arabicText, {
+          language: 'ar',
+          rate: SPEED_MAP[selectedSpeed],
+          gender: selectedVoice === 'mishari' ? 'mishari' : selectedVoice === 'male' ? 'male' : 'female',
+        });
+      }
+      console.log('[Audio] Audio finished for:', dua.id);
+    } catch (err) {
+      console.error('[Audio] Error in handlePlayAudio:', err);
+      Alert.alert(
+        'Audio',
+        "Impossible de lire l'audio. V\u00e9rifiez votre connexion internet.",
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setPlayingDuaId(null);
+      setGeneratingMishari(false);
+    }
   };
 
   const getTranslationText = (dua: Dua): string => {
@@ -253,6 +296,122 @@ export default function DuaCategoryDetailScreen() {
     </View>
   );
 
+  const renderAudioControls = () => (
+    <View style={styles.audioControlsRow}>
+      {/* Vitesse dropdown */}
+      <View style={[styles.dropdownWrapper, { zIndex: speedDropdownOpen ? 20 : 10 }]}>
+        <TouchableOpacity
+          style={[styles.dropdownTrigger, { borderColor: colors.primary, backgroundColor: colors.inputBg }]}
+          onPress={() => {
+            setSpeedDropdownOpen(!speedDropdownOpen);
+            setVoiceDropdownOpen(false);
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="speedometer-outline" size={15} color={colors.primary} />
+          <Text style={[styles.dropdownTriggerText, { color: colors.text }]}>
+            {SPEED_LABELS[selectedSpeed]}
+          </Text>
+          <Ionicons
+            name={speedDropdownOpen ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+        {speedDropdownOpen && (
+          <View style={[styles.dropdownList, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            {(['slow', 'medium', 'fast'] as const).map((speed) => (
+              <TouchableOpacity
+                key={speed}
+                style={[
+                  styles.dropdownItem,
+                  selectedSpeed === speed && { backgroundColor: `${colors.primary}15` },
+                ]}
+                onPress={() => {
+                  setSelectedSpeed(speed);
+                  setSpeedDropdownOpen(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.dropdownItemText,
+                  { color: selectedSpeed === speed ? colors.primary : colors.text },
+                  selectedSpeed === speed && { fontWeight: '700' },
+                ]}>
+                  {SPEED_LABELS[speed]}
+                </Text>
+                {selectedSpeed === speed && (
+                  <Ionicons name="checkmark" size={16} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Voix dropdown */}
+      <View style={[styles.dropdownWrapper, { zIndex: voiceDropdownOpen ? 20 : 10 }]}>
+        <TouchableOpacity
+          style={[styles.dropdownTrigger, { borderColor: colors.primary, backgroundColor: colors.inputBg }]}
+          onPress={() => {
+            setVoiceDropdownOpen(!voiceDropdownOpen);
+            setSpeedDropdownOpen(false);
+          }}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name={selectedVoice === 'female' ? 'woman' : 'man'}
+            size={15}
+            color={colors.primary}
+          />
+          <Text style={[styles.dropdownTriggerText, { color: colors.text }]}>
+            {VOICE_LABELS[selectedVoice]}
+          </Text>
+          <Ionicons
+            name={voiceDropdownOpen ? 'chevron-up' : 'chevron-down'}
+            size={14}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+        {voiceDropdownOpen && (
+          <View style={[styles.dropdownList, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+            {(['female', 'male', 'mishari'] as const).map((voice) => (
+              <TouchableOpacity
+                key={voice}
+                style={[
+                  styles.dropdownItem,
+                  selectedVoice === voice && { backgroundColor: `${colors.primary}15` },
+                ]}
+                onPress={() => {
+                  setSelectedVoice(voice);
+                  setVoiceDropdownOpen(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={voice === 'female' ? 'woman' : voice === 'mishari' ? 'mic' : 'man'}
+                  size={14}
+                  color={selectedVoice === voice ? colors.primary : colors.textSecondary}
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={[
+                  styles.dropdownItemText,
+                  { color: selectedVoice === voice ? colors.primary : colors.text, flex: 1 },
+                  selectedVoice === voice && { fontWeight: '700' },
+                ]}>
+                  {VOICE_LABELS[voice]}
+                </Text>
+                {selectedVoice === voice && (
+                  <Ionicons name="checkmark" size={16} color={colors.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -343,6 +502,7 @@ export default function DuaCategoryDetailScreen() {
         </View>
 
         {renderLanguageButtons()}
+        {renderAudioControls()}
 
         <ScrollView
           style={styles.content}
@@ -357,6 +517,69 @@ export default function DuaCategoryDetailScreen() {
           }}
           scrollEventThrottle={400}
         >
+          {/* Category description (e.g. Ruqyah info) */}
+          {categoryDescription && (
+            <View style={[styles.descriptionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              <TouchableOpacity
+                style={styles.descriptionHeader}
+                onPress={() => setDescriptionExpanded(!descriptionExpanded)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.descriptionIconCircle, { backgroundColor: `${categoryColor}20` }]}>
+                  <MaterialCommunityIcons name="information" size={20} color={categoryColor} />
+                </View>
+                <Text style={[styles.descriptionTitle, { color: colors.text }]}>
+                  {'À propos de la '}{categoryDescription.title}
+                </Text>
+                <MaterialCommunityIcons
+                  name={descriptionExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={22}
+                  color={colors.textSecondary}
+                />
+              </TouchableOpacity>
+
+              {descriptionExpanded && (
+                <View style={styles.descriptionContent}>
+                  {categoryDescription.sections.map((section, sIndex) => {
+                    const isSectionExpanded = expandedDescSections.has(sIndex);
+                    return (
+                      <View key={sIndex} style={styles.descriptionSection}>
+                        {section.heading && (
+                          <TouchableOpacity
+                            style={[styles.descSectionHeadingRow, { borderTopColor: colors.cardBorder }]}
+                            onPress={() => {
+                              setExpandedDescSections(prev => {
+                                const next = new Set(prev);
+                                if (next.has(sIndex)) next.delete(sIndex);
+                                else next.add(sIndex);
+                                return next;
+                              });
+                            }}
+                            activeOpacity={0.7}
+                          >
+                            <Text style={[styles.descSectionHeading, { color: categoryColor }]}>
+                              {section.heading}
+                            </Text>
+                            <MaterialCommunityIcons
+                              name={isSectionExpanded ? 'chevron-up' : 'chevron-down'}
+                              size={18}
+                              color={categoryColor}
+                            />
+                          </TouchableOpacity>
+                        )}
+                        {(section.heading ? isSectionExpanded : true) && (
+                          <Text style={[styles.descSectionBody, { color: colors.text }]}>
+                            {section.body}
+                          </Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          )}
+
           <Text style={[styles.resultsCount, { color: colors.textSecondary }]}>
             {duas.length} dou'a{duas.length > 1 ? 's' : ''} trouv{'\u00e9'}e{duas.length > 1 ? 's' : ''}
             {hasMore && ' (glissez pour en voir plus)'}
@@ -387,6 +610,19 @@ export default function DuaCategoryDetailScreen() {
                   )}
                 </View>
 
+                {/* Recommended for tags */}
+                {dua.recommendedFor ? (
+                  <View style={styles.recommendedRow}>
+                    {dua.recommendedFor.split('|').map((tag, i) => (
+                      <View key={i} style={[styles.recommendedTag, { backgroundColor: `${colors.primary}15` }]}>
+                        <Text style={[styles.recommendedTagText, { color: colors.primary }]}>
+                          {tag.trim()}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+
                 {/* Arabic text — always shown */}
                 <View style={styles.textSection}>
                   <Text style={[styles.arabicText, { color: colors.text }]}>
@@ -394,8 +630,8 @@ export default function DuaCategoryDetailScreen() {
                   </Text>
                 </View>
 
-                {/* Transliteration — toggled */}
-                {showTransliteration && dua.transliteration ? (
+                {/* Transliteration — always shown */}
+                {dua.transliteration ? (
                   <View style={[styles.translitSection, { borderTopColor: colors.cardBorder }]}>
                     <Text style={[styles.translitText, { color: colors.textSecondary }]}>
                       {dua.transliteration}
@@ -485,6 +721,38 @@ export default function DuaCategoryDetailScreen() {
                   );
                 })()}
 
+                {/* Benefit & Virtue */}
+                {dua.benefit ? (
+                  <View style={[styles.benefitSection, { borderTopColor: colors.cardBorder }]}>
+                    <TouchableOpacity
+                      style={[styles.benefitToggle, { backgroundColor: `${colors.accent}10` }]}
+                      onPress={() => {
+                        setExpandedBenefits(prev => {
+                          const next = new Set(prev);
+                          if (next.has(dua.id)) next.delete(dua.id);
+                          else next.add(dua.id);
+                          return next;
+                        });
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={expandedBenefits.has(dua.id) ? 'chevron-up' : 'star'}
+                        size={14}
+                        color={colors.accent}
+                      />
+                      <Text style={[styles.benefitToggleText, { color: colors.accent }]}>
+                        {expandedBenefits.has(dua.id) ? 'Masquer' : 'Bienfait & Vertu'}
+                      </Text>
+                    </TouchableOpacity>
+                    {expandedBenefits.has(dua.id) && (
+                      <Text style={[styles.benefitText, { color: colors.textSecondary }]}>
+                        {dua.benefit}
+                      </Text>
+                    )}
+                  </View>
+                ) : null}
+
                 {/* Reference + Actions */}
                 <View style={styles.cardFooter}>
                   <Text style={[styles.referenceText, { color: colors.textSecondary }]} numberOfLines={1}>
@@ -499,14 +767,25 @@ export default function DuaCategoryDetailScreen() {
                           playingDuaId === dua.id && { backgroundColor: `${colors.accent}15` },
                         ]}
                         onPress={() => handlePlayAudio(dua)}
+                        disabled={generatingMishari && playingDuaId !== dua.id}
                       >
-                        <Ionicons
-                          name={playingDuaId === dua.id ? 'stop-circle' : 'volume-high'}
-                          size={16}
-                          color={playingDuaId === dua.id ? colors.accent : colors.primary}
-                        />
+                        {generatingMishari && playingDuaId === dua.id ? (
+                          <ActivityIndicator size="small" color={colors.accent} />
+                        ) : (
+                          <Ionicons
+                            name={playingDuaId === dua.id ? 'stop-circle' : 'volume-high'}
+                            size={16}
+                            color={playingDuaId === dua.id ? colors.accent : colors.primary}
+                          />
+                        )}
                         <Text style={[styles.actionButtonText, { color: playingDuaId === dua.id ? colors.accent : colors.primary }]}>
-                          {playingDuaId === dua.id ? 'Stop' : '\u00c9couter'}
+                          {generatingMishari && playingDuaId === dua.id
+                            ? 'Génération...'
+                            : playingDuaId === dua.id
+                              ? 'Stop'
+                              : dua.verseRefs && dua.verseRefs.length > 0
+                                ? 'Récitateur'
+                                : 'Écouter'}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -813,5 +1092,148 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  recommendedRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+  },
+  recommendedTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  recommendedTagText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  benefitSection: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  benefitToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  benefitToggleText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  benefitText: {
+    fontSize: 13,
+    lineHeight: 20,
+    marginTop: 8,
+    paddingBottom: 4,
+  },
+  audioControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    zIndex: 30,
+    overflow: 'visible' as any,
+  },
+  dropdownWrapper: {
+    position: 'relative',
+    minWidth: 140,
+    overflow: 'visible' as any,
+  },
+  dropdownTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  dropdownTriggerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  dropdownList: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: { boxShadow: '0 4px 12px rgba(0,0,0,0.12)' },
+      default: { elevation: 6 },
+    }),
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  dropdownItemText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  descriptionCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  descriptionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  descriptionIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  descriptionTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  descriptionContent: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+  },
+  descriptionSection: {
+    marginBottom: 8,
+  },
+  descSectionHeadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    marginTop: 4,
+  },
+  descSectionHeading: {
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  descSectionBody: {
+    fontSize: 13,
+    lineHeight: 20,
+    opacity: 0.88,
   },
 });

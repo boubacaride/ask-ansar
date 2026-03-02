@@ -13,6 +13,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
 import { DUA_CATEGORIES } from '@/utils/duaUtils';
+import DuaHandsIcon from '@/components/DuaHandsIcon';
 
 export default function DuasScreen() {
   const { darkMode } = useSettings();
@@ -55,7 +56,7 @@ export default function DuasScreen() {
           </TouchableOpacity>
           <View style={styles.headerContent}>
             <View style={[styles.headerIcon, { backgroundColor: 'rgba(0, 121, 107, 0.1)' }]}>
-              <MaterialCommunityIcons name="hands-pray" size={24} color={colors.primary} />
+              <DuaHandsIcon size={28} color={colors.primary} />
             </View>
             <View>
               <Text style={[styles.headerTitle, { color: colors.text }]}>Dou'as et Dhikr</Text>
