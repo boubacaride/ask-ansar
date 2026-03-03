@@ -352,7 +352,7 @@ export default function DuasComCategoriesScreen() {
                 <Text style={[styles.footerText, { color: colors.duaCount }]}>
                   Data sourced from Duas.com
                 </Text>
-                <TouchableOpacity onPress={() => Linking.openURL('https://duas.com')}>
+                <TouchableOpacity onPress={() => Platform.OS === 'web' ? window.open('https://duas.com', '_blank') : Linking.openURL('https://duas.com')}>
                   <Text style={[styles.footerLink, { color: colors.accent }]}>
                     Visit Duas.com {'\u2197'}
                   </Text>

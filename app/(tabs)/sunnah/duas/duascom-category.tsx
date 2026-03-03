@@ -54,8 +54,16 @@ export default function DuasComCategoryDetailScreen() {
     linkColor: darkMode ? '#7CB342' : '#558B2F',
   };
 
+  const openExternalUrl = (url: string) => {
+    if (Platform.OS === 'web') {
+      window.open(url, '_blank');
+    } else {
+      Linking.openURL(url);
+    }
+  };
+
   const handleDuaPress = (dua: DuaLink) => {
-    Linking.openURL(dua.url);
+    openExternalUrl(dua.url);
   };
 
   if (!category) {
@@ -206,7 +214,7 @@ export default function DuasComCategoryDetailScreen() {
           <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.openSourceButton, { borderColor: colors.accent }]}
-              onPress={() => Linking.openURL(category.sourceUrl)}
+              onPress={() => openExternalUrl(category.sourceUrl)}
             >
               <MaterialCommunityIcons name="open-in-new" size={16} color={colors.accent} />
               <Text style={[styles.openSourceText, { color: colors.accent }]}>
