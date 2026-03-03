@@ -188,6 +188,13 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="sunnah/duas/duascom-detail"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="sunnah/duas/duascom-webview"
         options={{
           href: null,

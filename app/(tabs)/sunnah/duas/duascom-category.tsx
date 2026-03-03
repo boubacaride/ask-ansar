@@ -53,15 +53,23 @@ export default function DuasComCategoryDetailScreen() {
     linkColor: darkMode ? '#7CB342' : '#558B2F',
   };
 
+  const handleDuaPress = (dua: DuaLink) => {
+    router.push({
+      pathname: '/(tabs)/sunnah/duas/duascom-detail',
+      params: {
+        duaId: dua.id,
+        duaTitle: dua.title,
+        duaUrl: dua.url,
+        categoryName: params.categoryName || category?.name || '',
+      },
+    });
+  };
+
   const openInAppBrowser = (url: string, title: string) => {
     router.push({
       pathname: '/(tabs)/sunnah/duas/duascom-webview',
       params: { url, title },
     });
-  };
-
-  const handleDuaPress = (dua: DuaLink) => {
-    openInAppBrowser(dua.url, dua.title);
   };
 
   if (!category) {

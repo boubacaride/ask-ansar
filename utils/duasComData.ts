@@ -145,3 +145,45 @@ export function generateSlug(name: string): string {
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
 }
+
+// ─── Dua Content (full text: Arabic, translation, transliteration) ────────
+
+export interface DuaContent {
+  duaNumber: number | null;
+  arabic: string;
+  translation: string;
+  transliteration: string;
+  sources: string;
+}
+
+export interface DuaContentMap {
+  [duaId: string]: DuaContent;
+}
+
+let _cachedContent: DuaContentMap | null = null;
+
+/**
+ * Load the full dua content data (Arabic, translation, transliteration).
+ * This is a separate JSON file from the category/listing data.
+ */
+export function getDuaContentMap(): DuaContentMap {
+  if (_cachedContent) return _cachedContent;
+
+  try {
+    const data = require('@/data/duas-com-content.json') as DuaContentMap;
+    _cachedContent = data;
+    return data;
+  } catch (error) {
+    console.warn('Failed to load duas-com-content.json:', error);
+    return {};
+  }
+}
+
+/**
+ * Get the full content for a specific dua by its ID.
+ * Returns null if not found.
+ */
+export function getDuaContent(duaId: string): DuaContent | null {
+  const map = getDuaContentMap();
+  return map[duaId] ?? null;
+}
