@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Platform,
   Share,
-  Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +23,8 @@ export default function DuasComDetailScreen() {
     duaTitle: string;
     duaUrl: string;
     categoryName: string;
+    categoryId: string;
+    categorySlug: string;
   }>();
 
   const { darkMode } = useSettings();
@@ -48,24 +49,28 @@ export default function DuasComDetailScreen() {
     duaNumberBg: darkMode ? 'rgba(141, 182, 0, 0.15)' : 'rgba(141, 182, 0, 0.12)',
   };
 
-  const handleShare = async () => {
-    const url = params.duaUrl || `https://duas.com/dua/${params.duaId}`;
-    try {
-      await Share.share({
-        message: `${params.duaTitle}\n${url}`,
-        url: url,
+  const handleGoBack = () => {
+    if (params.categoryId) {
+      router.navigate({
+        pathname: '/(tabs)/sunnah/duas/duascom-category',
+        params: {
+          categoryId: params.categoryId,
+          categoryName: params.categoryName || '',
+          categorySlug: params.categorySlug || '',
+        },
       });
-    } catch (e) {
-      // ignore
+    } else {
+      router.navigate('/(tabs)/sunnah/duas/categories');
     }
   };
 
-  const handleOpenExternal = () => {
-    const url = params.duaUrl || `https://duas.com/dua/${params.duaId}`;
-    if (Platform.OS === 'web') {
-      window.open(url, '_blank');
-    } else {
-      Linking.openURL(url);
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: params.duaTitle || 'Dou\'a',
+      });
+    } catch (e) {
+      // ignore
     }
   };
 
@@ -83,28 +88,22 @@ export default function DuasComDetailScreen() {
             },
           ]}
         >
-          <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.headerButton} onPress={handleGoBack}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={2}>
-              {params.duaTitle || 'Dua'}
+              {params.duaTitle || 'Dou\'a'}
             </Text>
           </View>
         </View>
         <View style={styles.emptyContainer}>
           <MaterialCommunityIcons name="alert-circle-outline" size={48} color={colors.textSecondary} />
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            Content not available for this dua.
+            Contenu non disponible pour cette dou'a.
           </Text>
-          <TouchableOpacity
-            style={[styles.openExternalButton, { borderColor: colors.accent }]}
-            onPress={handleOpenExternal}
-          >
-            <MaterialCommunityIcons name="open-in-new" size={16} color={colors.accent} />
-            <Text style={[styles.openExternalText, { color: colors.accent }]}>
-              View on Duas.com
-            </Text>
+          <TouchableOpacity onPress={handleGoBack}>
+            <Text style={[styles.emptyLink, { color: colors.accent }]}>Retour</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -128,12 +127,12 @@ export default function DuasComDetailScreen() {
             },
           ]}
         >
-          <TouchableOpacity style={styles.headerButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.headerButton} onPress={handleGoBack}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={2}>
-              {params.duaTitle || 'Dua'}
+              {params.duaTitle || 'Dou\'a'}
             </Text>
             {params.categoryName ? (
               <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
@@ -141,13 +140,11 @@ export default function DuasComDetailScreen() {
               </Text>
             ) : null}
           </View>
-          <TouchableOpacity style={styles.headerButton} onPress={Platform.OS === 'web' ? handleOpenExternal : handleShare}>
-            <Ionicons
-              name={Platform.OS === 'web' ? 'open-outline' : 'share-outline'}
-              size={22}
-              color={colors.accent}
-            />
-          </TouchableOpacity>
+          {Platform.OS !== 'web' ? (
+            <TouchableOpacity style={styles.headerButton} onPress={handleShare}>
+              <Ionicons name="share-outline" size={22} color={colors.accent} />
+            </TouchableOpacity>
+          ) : null}
         </View>
 
         <ScrollView
@@ -160,7 +157,7 @@ export default function DuasComDetailScreen() {
             <View style={[styles.duaNumberBadge, { backgroundColor: colors.duaNumberBg }]}>
               <MaterialCommunityIcons name="star-four-points" size={16} color={colors.accent} />
               <Text style={[styles.duaNumberText, { color: colors.accent }]}>
-                Dua No: {duaContent.duaNumber}
+                Dou'a N{'\u00B0'} {duaContent.duaNumber}
               </Text>
             </View>
           )}
@@ -179,7 +176,7 @@ export default function DuasComDetailScreen() {
             <View style={[styles.section, { backgroundColor: colors.translationBg, borderColor: colors.cardBorder }]}>
               <View style={[styles.sectionHeader, { backgroundColor: colors.sectionHeader }]}>
                 <Ionicons name="language" size={18} color={colors.accent} />
-                <Text style={[styles.sectionHeaderText, { color: colors.accent }]}>Translation</Text>
+                <Text style={[styles.sectionHeaderText, { color: colors.accent }]}>Traduction</Text>
               </View>
               <View style={styles.sectionContent}>
                 <Text style={[styles.translationText, { color: colors.text }]}>
@@ -194,7 +191,7 @@ export default function DuasComDetailScreen() {
             <View style={[styles.section, { backgroundColor: colors.transliterationBg, borderColor: colors.cardBorder }]}>
               <View style={[styles.sectionHeader, { backgroundColor: colors.sectionHeader }]}>
                 <MaterialCommunityIcons name="format-text" size={18} color={colors.accent} />
-                <Text style={[styles.sectionHeaderText, { color: colors.accent }]}>Transliteration</Text>
+                <Text style={[styles.sectionHeaderText, { color: colors.accent }]}>Translitt{'e\u0301'}ration</Text>
               </View>
               <View style={styles.sectionContent}>
                 <Text style={[styles.transliterationText, { color: colors.text }]}>
@@ -214,18 +211,8 @@ export default function DuasComDetailScreen() {
             </View>
           ) : null}
 
-          {/* Footer link */}
-          <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.openExternalButton, { borderColor: colors.accent }]}
-              onPress={handleOpenExternal}
-            >
-              <MaterialCommunityIcons name="open-in-new" size={16} color={colors.accent} />
-              <Text style={[styles.openExternalText, { color: colors.accent }]}>
-                View on Duas.com
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {/* Footer spacer */}
+          <View style={styles.footer} />
         </ScrollView>
       </LinearGradient>
     </View>
@@ -362,21 +349,7 @@ const styles = StyleSheet.create({
   // Footer
   footer: {
     marginTop: 10,
-    alignItems: 'center',
     paddingBottom: 20,
-  },
-  openExternalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 20,
-    borderWidth: 1.5,
-  },
-  openExternalText: {
-    fontSize: 14,
-    fontWeight: '600',
   },
 
   // Empty
@@ -390,5 +363,9 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 15,
     textAlign: 'center',
+  },
+  emptyLink: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

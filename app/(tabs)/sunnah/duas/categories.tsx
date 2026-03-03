@@ -23,7 +23,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const LETTER_BAR_COLOR = '#8DB600'; // Olive green matching Duas.com
+const LETTER_BAR_COLOR = '#8DB600'; // Olive green accent
 const LETTER_BAR_COLOR_DARK = '#6B8E23';
 
 export default function DuasComCategoriesScreen() {
@@ -279,7 +279,7 @@ export default function DuasComCategoriesScreen() {
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.back()}
+            onPress={() => router.navigate('/(tabs)/sunnah/duas')}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -288,9 +288,9 @@ export default function DuasComCategoriesScreen() {
               <MaterialCommunityIcons name="format-list-bulleted" size={26} color={colors.accent} />
             </View>
             <View>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>Duas.com Categories</Text>
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Cat{'é'}gories de Dou'as</Text>
               <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-                {stats.totalCategories} categories {'\u00B7'} {stats.totalDuas} duas
+                {stats.totalCategories} cat{'é'}gories {'\u00B7'} {stats.totalDuas} dou'as
               </Text>
             </View>
           </View>
@@ -334,29 +334,20 @@ export default function DuasComCategoriesScreen() {
             <>
               {/* Breadcrumb */}
               <View style={styles.breadcrumb}>
-                <TouchableOpacity onPress={() => router.back()}>
+                <TouchableOpacity onPress={() => router.navigate('/(tabs)/sunnah/duas')}>
                   <Text style={[styles.breadcrumbLink, { color: colors.accent }]}>Dou'as</Text>
                 </TouchableOpacity>
                 <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
                 <Text style={[styles.breadcrumbCurrent, { color: colors.textSecondary }]}>
-                  Categories A-Z
+                  Cat{'é'}gories A-Z
                 </Text>
               </View>
 
               {/* Letter groups */}
               {letterGroups.map(group => renderLetterGroup(group))}
 
-              {/* Footer */}
-              <View style={styles.footer}>
-                <Text style={[styles.footerText, { color: colors.duaCount }]}>
-                  Data sourced from Duas.com
-                </Text>
-                <TouchableOpacity onPress={() => router.push({ pathname: '/(tabs)/sunnah/duas/duascom-webview', params: { url: 'https://duas.com', title: 'Duas.com' } })}>
-                  <Text style={[styles.footerLink, { color: colors.accent }]}>
-                    Visit Duas.com {'\u2197'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              {/* Footer spacer */}
+              <View style={styles.footer} />
             </>
           )}
         </ScrollView>

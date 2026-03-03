@@ -61,14 +61,9 @@ export default function DuasComCategoryDetailScreen() {
         duaTitle: dua.title,
         duaUrl: dua.url,
         categoryName: params.categoryName || category?.name || '',
+        categoryId: params.categoryId,
+        categorySlug: params.categorySlug,
       },
-    });
-  };
-
-  const openInAppBrowser = (url: string, title: string) => {
-    router.push({
-      pathname: '/(tabs)/sunnah/duas/duascom-webview',
-      params: { url, title },
     });
   };
 
@@ -76,7 +71,7 @@ export default function DuasComCategoryDetailScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Category not found</Text>
@@ -86,8 +81,8 @@ export default function DuasComCategoryDetailScreen() {
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
             This category could not be found.
           </Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={[styles.emptyLink, { color: colors.accent }]}>Go back</Text>
+          <TouchableOpacity onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
+            <Text style={[styles.emptyLink, { color: colors.accent }]}>Retour</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -110,7 +105,7 @@ export default function DuasComCategoryDetailScreen() {
             },
           ]}
         >
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
@@ -154,7 +149,7 @@ export default function DuasComCategoryDetailScreen() {
         {/* Breadcrumb */}
         <View style={styles.breadcrumbContainer}>
           <TouchableOpacity onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
-            <Text style={[styles.breadcrumbLink, { color: colors.accent }]}>Categories</Text>
+            <Text style={[styles.breadcrumbLink, { color: colors.accent }]}>Cat{'é'}gories</Text>
           </TouchableOpacity>
           <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
           <Text style={[styles.breadcrumbCurrent, { color: colors.textSecondary }]} numberOfLines={1}>
@@ -199,16 +194,6 @@ export default function DuasComCategoryDetailScreen() {
                     <Text style={[styles.duaTitle, { color: colors.text }]} numberOfLines={3}>
                       {dua.title}
                     </Text>
-                    <View style={styles.duaLinkRow}>
-                      <MaterialCommunityIcons
-                        name="open-in-new"
-                        size={14}
-                        color={colors.linkColor}
-                      />
-                      <Text style={[styles.duaLinkText, { color: colors.linkColor }]}>
-                        Open on Duas.com
-                      </Text>
-                    </View>
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.duaNumber} />
                 </View>
@@ -216,17 +201,8 @@ export default function DuasComCategoryDetailScreen() {
             ))
           )}
 
-          {/* Footer */}
+          {/* Footer spacer */}
           <View style={styles.footer}>
-            <TouchableOpacity
-              style={[styles.openSourceButton, { borderColor: colors.accent }]}
-              onPress={() => openInAppBrowser(category.sourceUrl, category.name + ' - Duas.com')}
-            >
-              <MaterialCommunityIcons name="open-in-new" size={16} color={colors.accent} />
-              <Text style={[styles.openSourceText, { color: colors.accent }]}>
-                View on Duas.com
-              </Text>
-            </TouchableOpacity>
           </View>
         </ScrollView>
       </LinearGradient>
