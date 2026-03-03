@@ -186,6 +186,13 @@ export default function TabLayout() {
           href: null,
         }}
       />
+
+      <Tabs.Screen
+        name="sunnah/duas/duascom-webview"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

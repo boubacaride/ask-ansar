@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
-  Linking,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,16 +53,15 @@ export default function DuasComCategoryDetailScreen() {
     linkColor: darkMode ? '#7CB342' : '#558B2F',
   };
 
-  const openExternalUrl = (url: string) => {
-    if (Platform.OS === 'web') {
-      window.open(url, '_blank');
-    } else {
-      Linking.openURL(url);
-    }
+  const openInAppBrowser = (url: string, title: string) => {
+    router.push({
+      pathname: '/(tabs)/sunnah/duas/duascom-webview',
+      params: { url, title },
+    });
   };
 
   const handleDuaPress = (dua: DuaLink) => {
-    openExternalUrl(dua.url);
+    openInAppBrowser(dua.url, dua.title);
   };
 
   if (!category) {
@@ -214,7 +212,7 @@ export default function DuasComCategoryDetailScreen() {
           <View style={styles.footer}>
             <TouchableOpacity
               style={[styles.openSourceButton, { borderColor: colors.accent }]}
-              onPress={() => openExternalUrl(category.sourceUrl)}
+              onPress={() => openInAppBrowser(category.sourceUrl, category.name + ' - Duas.com')}
             >
               <MaterialCommunityIcons name="open-in-new" size={16} color={colors.accent} />
               <Text style={[styles.openSourceText, { color: colors.accent }]}>
