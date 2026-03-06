@@ -146,6 +146,20 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="sunnah/hadith-collections"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
+        name="sunnah/bibliotheque"
+        options={{
+          href: null,
+        }}
+      />
+
+      <Tabs.Screen
         name="sunnah/[categoryId]"
         options={{
           href: null,

@@ -164,7 +164,7 @@ export default function DuasComCategoriesScreen() {
     return (
       <View style={styles.searchResultsContainer}>
         <Text style={[styles.searchResultsTitle, { color: colors.textSecondary }]}>
-          {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} found
+          {searchResults.length} r{'é'}sultat{searchResults.length !== 1 ? 's' : ''} trouv{'é'}{searchResults.length !== 1 ? 's' : ''}
         </Text>
         {searchResults.map(category => (
           <TouchableOpacity
@@ -184,7 +184,7 @@ export default function DuasComCategoriesScreen() {
                 {category.name}
               </Text>
               <Text style={[styles.duaCountText, { color: colors.duaCount }]}>
-                {category.duas.length} dua{category.duas.length !== 1 ? 's' : ''}
+                {category.duas.length} dou'a{category.duas.length !== 1 ? 's' : ''}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.duaCount} />
@@ -215,7 +215,7 @@ export default function DuasComCategoriesScreen() {
               </Text>
             </View>
             <Text style={[styles.letterBarTitle, { color: colors.letterBarText }]}>
-              {group.categories.length} categor{group.categories.length !== 1 ? 'ies' : 'y'}
+              {group.categories.length} cat{'é'}gorie{group.categories.length !== 1 ? 's' : ''}
             </Text>
           </View>
           <View style={[styles.expandIcon, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
@@ -249,7 +249,7 @@ export default function DuasComCategoriesScreen() {
                     {category.name}
                   </Text>
                   <Text style={[styles.duaCountText, { color: colors.duaCount }]}>
-                    {category.duas.length} dua{category.duas.length !== 1 ? 's' : ''}
+                    {category.duas.length} dou'a{category.duas.length !== 1 ? 's' : ''}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={colors.duaCount} />
@@ -303,7 +303,7 @@ export default function DuasComCategoriesScreen() {
             <Ionicons name="search" size={18} color={colors.textSecondary} />
             <TextInput
               style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Search categories..."
+              placeholder="Rechercher des catégories..."
               placeholderTextColor={colors.textSecondary}
               value={searchQuery}
               onChangeText={handleSearch}

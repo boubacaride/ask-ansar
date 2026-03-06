@@ -74,12 +74,12 @@ export default function DuasComCategoryDetailScreen() {
           <TouchableOpacity style={styles.backButton} onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Category not found</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Cat{'é'}gorie introuvable</Text>
         </View>
         <View style={styles.emptyContainer}>
           <MaterialCommunityIcons name="alert-circle-outline" size={48} color={colors.textSecondary} />
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-            This category could not be found.
+            Cette cat{'é'}gorie n'a pas {'é'}t{'é'} trouv{'é'}e.
           </Text>
           <TouchableOpacity onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
             <Text style={[styles.emptyLink, { color: colors.accent }]}>Retour</Text>
@@ -117,7 +117,7 @@ export default function DuasComCategoryDetailScreen() {
                 {params.categoryName || category.name}
               </Text>
               <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-                {category.duas.length} dua{category.duas.length !== 1 ? 's' : ''}
+                {category.duas.length} dou'a{category.duas.length !== 1 ? 's' : ''}
               </Text>
             </View>
           </View>
@@ -130,7 +130,7 @@ export default function DuasComCategoryDetailScreen() {
               <Ionicons name="search" size={18} color={colors.textSecondary} />
               <TextInput
                 style={[styles.searchInput, { color: colors.text }]}
-                placeholder="Search duas..."
+                placeholder="Rechercher des dou'as..."
                 placeholderTextColor={colors.textSecondary}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -167,7 +167,7 @@ export default function DuasComCategoryDetailScreen() {
             <View style={styles.emptyContainer}>
               <MaterialCommunityIcons name="magnify" size={48} color={colors.textSecondary} />
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No duas found matching your search.
+                Aucune dou'a trouv{'é'}e pour votre recherche.
               </Text>
             </View>
           ) : (

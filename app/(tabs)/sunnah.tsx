@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,13 @@ import {
   TextInput,
   Modal,
   useWindowDimensions,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
-import { HadithViewer } from '@/components/HadithViewer';
 import { SeerahCard } from '@/components/SeerahCard';
 import DuaHandsIcon from '@/components/DuaHandsIcon';
 import SujoodIcon from '@/components/SujoodIcon';
@@ -24,88 +24,6 @@ import { SeerahMapCard } from '@/components/SeerahMapCard';
 import { SeerahReader } from '@/components/SeerahReader';
 import { HadithSearch } from '@/components/HadithSearch';
 
-const HADITH_COLLECTIONS = [
-  {
-    id: 'bukhari',
-    name: 'Sahih al-Bukhari',
-    arabicName: 'صحيح البخاري',
-    compiler: 'Imam al-Bukhari',
-    hadithCount: '7,563',
-    description: 'La collection de hadiths la plus authentique, Compilé par Imam Muhammad ibn Ismail al-Bukhari.',
-    url: 'https://sunnah.com/bukhari',
-    isPrimary: true,
-  },
-  {
-    id: 'muslim',
-    name: 'Sahih Muslim',
-    arabicName: 'صحيح مسلم',
-    compiler: 'Imam Muslim',
-    hadithCount: '7,500',
-    description: 'La deuxième collection la plus authentique, Compilé par Imam Muslim ibn al-Hajjaj.',
-    url: 'https://sunnah.com/muslim',
-    isPrimary: true,
-  },
-  {
-    id: 'tirmidhi',
-    name: 'Jami at-Tirmidhi',
-    arabicName: 'جامع الترمذي',
-    compiler: 'Imam at-Tirmidhi',
-    hadithCount: '3,956',
-    description: 'Connu pour sa classification de l\'authenticité des hadiths et ses commentaires juridiques.',
-    url: 'https://sunnah.com/tirmidhi',
-    isPrimary: false,
-  },
-  {
-    id: 'abudawud',
-    name: 'Sunan Abu Dawud',
-    arabicName: 'سنن أبي داود',
-    compiler: 'Imam Abu Dawud',
-    hadithCount: '5,274',
-    description: 'Focuses on hadith related to Islamic law and jurisprudence.',
-    url: 'https://sunnah.com/abudawud',
-    isPrimary: false,
-  },
-  {
-    id: 'nasai',
-    name: "Sunan an-Nasa'i",
-    arabicName: 'سنن النسائي',
-    compiler: "Imam an-Nasa'i",
-    hadithCount: '5,761',
-    description: 'Connu pour ses critères stricts dans l\'acceptation des narrateurs.',
-    url: 'https://sunnah.com/nasai',
-    isPrimary: false,
-  },
-  {
-    id: 'ibnmajah',
-    name: 'Sunan Ibn Majah',
-    arabicName: 'سنن ابن ماجه',
-    compiler: 'Imam Ibn Majah',
-    hadithCount: '4,341',
-    description: 'La sixième des grandes collections de hadiths, contenant des narrations uniques.',
-    url: 'https://sunnah.com/ibnmajah',
-    isPrimary: false,
-  },
-  {
-    id: 'malik',
-    name: 'Muwatta Malik',
-    arabicName: 'موطأ مالك',
-    compiler: 'Imam Malik',
-    hadithCount: '1,720',
-    description: 'L\'une des premières collections, axée sur la pratique de Médine.',
-    url: 'https://sunnah.com/malik',
-    isPrimary: false,
-  },
-  {
-    id: 'nawawi',
-    name: "Riyad as-Salihin",
-    arabicName: 'رياض الصالحين',
-    compiler: 'Imam an-Nawawi',
-    hadithCount: '1,896',
-    description: 'Une compilation de hadiths sur l\'éthique, les bonnes manières et le chemin vers la droiture.',
-    url: 'https://sunnah.com/riyadussalihin',
-    isPrimary: false,
-  },
-];
 
 const HADITH_Catégories = [
   { id: 'faith', name: 'Foi (Iman)', icon: 'heart', color: '#e91e63' },
@@ -126,10 +44,75 @@ export default function SunnahScreen() {
   const isSmallScreen = screenWidth < 380;
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'collections' | 'Catégories'>('collections');
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [selectedCollection, setSelectedCollection] = useState<{ url: string; name: string } | null>(null);
   const [seerahReaderVisible, setSeerahReaderVisible] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
+
+  // Animated values for Hadith button
+  const hadithBorderAnim = useRef(new Animated.Value(0)).current;
+  const hadithGlow = useRef(new Animated.Value(0.3)).current;
+  const hadithScale = useRef(new Animated.Value(1)).current;
+  const hadithStar1 = useRef(new Animated.Value(0.2)).current;
+  const hadithStar2 = useRef(new Animated.Value(0.7)).current;
+  const hadithStar3 = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    // Rotating gradient border
+    const borderLoop = Animated.loop(
+      Animated.timing(hadithBorderAnim, {
+        toValue: 1,
+        duration: 4000,
+        useNativeDriver: true,
+      })
+    );
+    borderLoop.start();
+
+    // Pulsing glow
+    const glowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hadithGlow, { toValue: 0.8, duration: 2000, useNativeDriver: true }),
+        Animated.timing(hadithGlow, { toValue: 0.3, duration: 2000, useNativeDriver: true }),
+      ])
+    );
+    glowLoop.start();
+
+    // Staggered star twinkles
+    const star1Loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hadithStar1, { toValue: 0.9, duration: 1200, useNativeDriver: true }),
+        Animated.timing(hadithStar1, { toValue: 0.1, duration: 1200, useNativeDriver: true }),
+      ])
+    );
+    star1Loop.start();
+
+    const star2Loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hadithStar2, { toValue: 1, duration: 1800, useNativeDriver: true }),
+        Animated.timing(hadithStar2, { toValue: 0.15, duration: 1800, useNativeDriver: true }),
+      ])
+    );
+    star2Loop.start();
+
+    const star3Loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(hadithStar3, { toValue: 0.85, duration: 2200, useNativeDriver: true }),
+        Animated.timing(hadithStar3, { toValue: 0.1, duration: 2200, useNativeDriver: true }),
+      ])
+    );
+    star3Loop.start();
+
+    return () => {
+      borderLoop.stop();
+      glowLoop.stop();
+      star1Loop.stop();
+      star2Loop.stop();
+      star3Loop.stop();
+    };
+  }, []);
+
+  const hadithBorderRotation = hadithBorderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
   const colors = {
     background: darkMode ? '#0a0a0a' : '#f8f9fa',
@@ -141,13 +124,6 @@ export default function SunnahScreen() {
     accent: '#c9a227',
     inputBg: darkMode ? '#252538' : '#f5f5f5',
     inputBorder: darkMode ? '#3d3d5c' : '#ced4da',
-  };
-
-  const filteredCollections = HADITH_COLLECTIONS;
-
-  const handleCollectionPress = (url: string, name: string) => {
-    setSelectedCollection({ url, name });
-    setViewerVisible(true);
   };
 
   const handleOpenInBrowser = (url: string) => {
@@ -244,80 +220,74 @@ export default function SunnahScreen() {
                 darkMode={darkMode}
               />
 
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Primary Collections (Sahihayn)
-              </Text>
+              {/* ═══ Hadiths du Messager d'Allah (ﷺ) — Animated Button ═══ */}
+              <View style={styles.hadithBtnContainer}>
+                {/* Pulsing glow behind the button */}
+                <Animated.View style={[styles.hadithGlowLayer, { opacity: hadithGlow }]} />
 
-              {filteredCollections
-                .filter((c) => c.isPrimary)
-                .map((collection) => (
+                <Animated.View style={{ transform: [{ scale: hadithScale }] }}>
                   <TouchableOpacity
-                    key={collection.id}
-                    style={[styles.collectionCard, styles.primaryCard, { backgroundColor: colors.card, borderColor: colors.accent }]}
-                    onPress={() => handleCollectionPress(collection.url, collection.name)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.85}
+                    onPress={() => router.push('/(tabs)/sunnah/hadith-collections')}
+                    onPressIn={() =>
+                      Animated.spring(hadithScale, {
+                        toValue: 0.96,
+                        useNativeDriver: true,
+                        tension: 120,
+                        friction: 8,
+                      }).start()
+                    }
+                    onPressOut={() =>
+                      Animated.spring(hadithScale, {
+                        toValue: 1,
+                        useNativeDriver: true,
+                        tension: 120,
+                        friction: 8,
+                      }).start()
+                    }
                   >
-                    <View style={styles.collectionHeader}>
-                      <View style={[styles.collectionIcon, { backgroundColor: 'rgba(201, 162, 39, 0.15)' }]}>
-                        <FontAwesome5 name="star" size={20} color={colors.accent} />
-                      </View>
-                      <View style={styles.collectionTitleContainer}>
-                        <Text style={[styles.collectionName, { color: colors.text }]}>{collection.name}</Text>
-                        <Text style={[styles.collectionArabic, { color: colors.accent }]}>{collection.arabicName}</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.collectionCompiler, { color: colors.textSecondary }]}>
-                      Compilé par {collection.compiler}
-                    </Text>
-                    <Text style={[styles.collectionDescription, { color: colors.textSecondary }]}>
-                      {collection.description}
-                    </Text>
-                    <View style={styles.collectionFooter}>
-                      <View style={[styles.hadithCount, { backgroundColor: colors.inputBg }]}>
-                        <Text style={[styles.hadithCountText, { color: colors.primary }]}>
-                          {collection.hadithCount} hadiths
+                    <View style={styles.hadithBtnOuter}>
+                      {/* Rotating gradient — teal/gold animated border */}
+                      <Animated.View
+                        style={[
+                          styles.hadithRotatingBg,
+                          { transform: [{ rotate: hadithBorderRotation }] },
+                        ]}
+                      >
+                        <LinearGradient
+                          colors={['#00897b', '#4db6ac', '#c9a227', '#daa520', '#4db6ac', '#00897b']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      </Animated.View>
+
+                      {/* Rich dark inner content */}
+                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#101824' : '#0b2b2b' }]}>
+                        {/* Subtle gold star particles */}
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 10, left: 60 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 16, right: 70 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, bottom: 16, right: 44 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, top: 24, left: 100 }]} />
+
+                        <FontAwesome5
+                          name="book-open"
+                          size={15}
+                          color="#c9a227"
+                          style={styles.hadithBtnIcon}
+                        />
+                        <Text style={styles.hadithBtnText}>
+                          Hadiths du Messager d'Allah (ﷺ)
                         </Text>
+                        <Ionicons name="chevron-forward" size={16} color="rgba(201, 162, 39, 0.6)" />
                       </View>
-                      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                     </View>
                   </TouchableOpacity>
-                ))}
+                </Animated.View>
+              </View>
 
-              <Text style={[styles.sectionTitle, { color: colors.text, marginTop: 24 }]}>
-                Other Major Collections
-              </Text>
-
-              {filteredCollections
-                .filter((c) => !c.isPrimary)
-                .map((collection) => (
-                  <TouchableOpacity
-                    key={collection.id}
-                    style={[styles.collectionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-                    onPress={() => handleCollectionPress(collection.url, collection.name)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.collectionHeader}>
-                      <View style={[styles.collectionIcon, { backgroundColor: 'rgba(0, 137, 123, 0.1)' }]}>
-                        <FontAwesome5 name="book" size={18} color={colors.primary} />
-                      </View>
-                      <View style={styles.collectionTitleContainer}>
-                        <Text style={[styles.collectionName, { color: colors.text }]}>{collection.name}</Text>
-                        <Text style={[styles.collectionArabic, { color: colors.textSecondary }]}>{collection.arabicName}</Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.collectionDescription, { color: colors.textSecondary }]}>
-                      {collection.description}
-                    </Text>
-                    <View style={styles.collectionFooter}>
-                      <View style={[styles.hadithCount, { backgroundColor: colors.inputBg }]}>
-                        <Text style={[styles.hadithCountText, { color: colors.primary }]}>
-                          {collection.hadithCount} hadiths
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                    </View>
-                  </TouchableOpacity>
-                ))}
             </>
           ) : (
             <>
@@ -355,15 +325,6 @@ export default function SunnahScreen() {
           )}
         </ScrollView>
       </LinearGradient>
-
-      {selectedCollection && (
-        <HadithViewer
-          visible={viewerVisible}
-          url={selectedCollection.url}
-          collectionName={selectedCollection.name}
-          onClose={() => setViewerVisible(false)}
-        />
-      )}
 
       <SeerahReader
         visible={seerahReaderVisible}
@@ -472,6 +433,71 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 16,
+  },
+  // ═══ Hadiths du Messager animated button styles ═══
+  hadithBtnContainer: {
+    alignItems: 'center',
+    marginVertical: 22,
+    position: 'relative',
+  },
+  hadithGlowLayer: {
+    position: 'absolute',
+    top: 2,
+    left: 35,
+    right: 35,
+    bottom: 2,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0, 137, 123, 0.25)',
+    shadowColor: '#00897b',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  hadithBtnOuter: {
+    borderRadius: 30,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  hadithRotatingBg: {
+    position: 'absolute',
+    width: 700,
+    height: 700,
+    top: -322,
+    left: -170,
+  },
+  hadithBtnInner: {
+    margin: 2.5,
+    borderRadius: 28,
+    paddingVertical: 14,
+    paddingHorizontal: 22,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  hadithStar: {
+    position: 'absolute',
+    width: 1.5,
+    height: 1.5,
+    backgroundColor: 'rgba(201, 162, 39, 0.7)',
+    borderRadius: 1,
+  },
+  hadithBtnIcon: {
+    textShadowColor: 'rgba(201, 162, 39, 0.4)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 4,
+  },
+  hadithBtnText: {
+    color: '#e8d5a3',
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(201, 162, 39, 0.3)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
   },
   collectionCard: {
     padding: 16,

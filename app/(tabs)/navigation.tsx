@@ -15,6 +15,7 @@ import {
   Dimensions,
   useWindowDimensions,
 } from 'react-native';
+import Svg, { Path, Circle as SvgCircle, Polygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -23,6 +24,70 @@ import { useNavigationStore, SavedLocation } from '@/store/navigationstore';
 import { useSettings } from '@/store/settingsStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Calculate bearing between two coordinates in degrees
+function calculateBearing(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+
+  const dLon = toRad(lon2 - lon1);
+  const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+  const x =
+    Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+    Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+  const bearing = toDeg(Math.atan2(y, x));
+  return (bearing + 360) % 360;
+}
+
+// Calculate distance between two coordinates in km
+function calculateDistance(
+  lat1: number, lon1: number,
+  lat2: number, lon2: number
+): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+/** Big blue direction arrow component */
+function DirectionArrow({
+  bearing,
+  heading,
+  size = 140,
+  color = '#1976D2',
+}: {
+  bearing: number;
+  heading: number;
+  size?: number;
+  color?: string;
+}) {
+  // Arrow rotation = bearing - device heading
+  const rotation = bearing - heading;
+
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ transform: [{ rotate: `${rotation}deg` }] }}>
+        <Svg width={size} height={size} viewBox="0 0 100 100">
+          {/* Thick filled arrow pointing up */}
+          <Polygon
+            points="50,8 72,60 58,52 58,88 42,88 42,52 28,60"
+            fill={color}
+          />
+        </Svg>
+      </View>
+    </View>
+  );
+}
 
 // Geocoding API - using OpenStreetMap Nominatim (free)
 const geocodeAddress = async (address: string): Promise<{ lat: number; lon: number } | null> => {
@@ -83,6 +148,9 @@ export default function NavigationScreen() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isGeocodingAddress, setIsGeocodingAddress] = useState(false);
+  const [deviceHeading, setDeviceHeading] = useState(0);
+  const [showDetails, setShowDetails] = useState(true);
+  const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   
   // Form state
   const [locationName, setLocationName] = useState('');
@@ -94,9 +162,25 @@ export default function NavigationScreen() {
   const dropdownAnim = useRef(new Animated.Value(0)).current;
   const modalAnim = useRef(new Animated.Value(0)).current;
 
-  // Get user's current location on mount
+  // Get user's current location on mount + watch heading
   useEffect(() => {
     requestLocationPermission();
+
+    // Watch device compass heading
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          headingSubscription.current = await Location.watchHeadingAsync((h) => {
+            setDeviceHeading(h.trueHeading ?? h.magHeading ?? 0);
+          });
+        }
+      } catch (_) { /* heading not available on web */ }
+    })();
+
+    return () => {
+      headingSubscription.current?.remove();
+    };
   }, []);
 
   const requestLocationPermission = async () => {
@@ -321,6 +405,7 @@ const handleDeleteLocation = (location: SavedLocation) => {
     }
 
     setIsNavigating(true);
+    setShowDetails(false); // Collapse details to show direction view
 
     // Open in native maps app with turn-by-turn directions
     const { latitude, longitude } = selectedDestination;
@@ -566,8 +651,8 @@ const handleDeleteLocation = (location: SavedLocation) => {
             )}
           </View>
 
-          {/* Selected Destination Details */}
-          {selectedDestination && (
+          {/* Selected Destination Details — collapsible */}
+          {selectedDestination && showDetails && (
             <View style={[styles.card, styles.destinationCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
               <View style={styles.destinationHeader}>
                 {selectedDestination.isPreset ? (
@@ -596,7 +681,71 @@ const handleDeleteLocation = (location: SavedLocation) => {
             </View>
           )}
 
-          {/* Start Navigation Button */}
+          {/* Direction Arrow — shows bearing toward destination */}
+          {selectedDestination && currentLocation && (
+            <View style={[styles.directionCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}>
+              {/* Collapsed mini header when details are hidden */}
+              {!showDetails && (
+                <TouchableOpacity
+                  style={styles.collapsedHeader}
+                  onPress={() => setShowDetails(true)}
+                >
+                  {selectedDestination.isPreset ? (
+                    <FontAwesome5 name="kaaba" size={16} color={colors.kaaba} />
+                  ) : (
+                    <FontAwesome5 name="map-marker-alt" size={16} color={colors.primary} />
+                  )}
+                  <Text style={[styles.collapsedHeaderText, { color: colors.text }]} numberOfLines={1}>
+                    {selectedDestination.name}
+                  </Text>
+                  <Text style={[styles.collapsedDistance, { color: colors.primary }]}>
+                    {calculateDistance(
+                      currentLocation.latitude, currentLocation.longitude,
+                      selectedDestination.latitude, selectedDestination.longitude
+                    ).toFixed(1)} km
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              )}
+
+              <View style={styles.directionArrowContainer}>
+                <DirectionArrow
+                  bearing={calculateBearing(
+                    currentLocation.latitude,
+                    currentLocation.longitude,
+                    selectedDestination.latitude,
+                    selectedDestination.longitude
+                  )}
+                  heading={deviceHeading}
+                  size={showDetails ? 120 : 160}
+                  color="#1976D2"
+                />
+              </View>
+
+              <View style={styles.directionInfo}>
+                <Text style={[styles.directionDistance, { color: colors.text }]}>
+                  {calculateDistance(
+                    currentLocation.latitude, currentLocation.longitude,
+                    selectedDestination.latitude, selectedDestination.longitude
+                  ).toFixed(1)} km
+                </Text>
+                <Text style={[styles.directionBearing, { color: colors.textSecondary }]}>
+                  {Math.round(calculateBearing(
+                    currentLocation.latitude, currentLocation.longitude,
+                    selectedDestination.latitude, selectedDestination.longitude
+                  ))}° — vers {selectedDestination.name}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <Text style={[styles.navigationHint, { color: colors.textSecondary }]}>
+            Ouvre les directions pas à pas dans votre application de carte
+          </Text>
+        </ScrollView>
+
+        {/* Fixed "Démarrer la navigation" button at bottom */}
+        <View style={[styles.bottomButtonContainer, { paddingBottom: Math.max(insets.bottom, 12) + 60, backgroundColor: darkMode ? '#0a0a0a' : '#f8f9fa' }]}>
           <TouchableOpacity
             style={[
               styles.navigationButton,
@@ -607,7 +756,7 @@ const handleDeleteLocation = (location: SavedLocation) => {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={['#00897b', '#00695c']}
+              colors={['#1976D2', '#1565C0']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.navigationButtonGradient}
@@ -616,17 +765,13 @@ const handleDeleteLocation = (location: SavedLocation) => {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <>
-                  <MaterialIcons name="navigation" size={26} color="#fff" />
-                  <Text style={styles.navigationButtonText}>Start Navigation</Text>
+                  <MaterialIcons name="navigation" size={28} color="#fff" />
+                  <Text style={styles.navigationButtonText}>Démarrer la navigation</Text>
                 </>
               )}
             </LinearGradient>
           </TouchableOpacity>
-
-          <Text style={[styles.navigationHint, { color: colors.textSecondary }]}>
-            Opens turn-by-turn directions in your maps app
-          </Text>
-        </ScrollView>
+        </View>
 
         {/* Add Location Modal */}
         <Modal
@@ -1053,15 +1198,75 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  // Direction arrow card
+  directionCard: {
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  collapsedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    paddingBottom: 12,
+    marginBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(0,0,0,0.1)',
+  },
+  collapsedHeaderText: {
+    fontSize: 15,
+    fontWeight: '600',
+    flex: 1,
+  },
+  collapsedDistance: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  directionArrowContainer: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  directionInfo: {
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  directionDistance: {
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  directionBearing: {
+    fontSize: 13,
+    marginTop: 4,
+  },
+  // Fixed bottom button
+  bottomButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
   navigationButton: {
-    marginTop: 8,
     borderRadius: 14,
     overflow: 'hidden',
-    shadowColor: '#00897b',
+    shadowColor: '#1976D2',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
   navigationButtonGradient: {
     flexDirection: 'row',
@@ -1074,12 +1279,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   navigationHint: {
     textAlign: 'center',
     fontSize: 13,
-    marginTop: 12,
+    marginTop: 8,
+    marginBottom: 120,
   },
   // Modal styles
   modalOverlay: {
