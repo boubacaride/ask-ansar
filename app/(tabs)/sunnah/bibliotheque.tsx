@@ -234,13 +234,13 @@ function BookReader({
 
     // Theme colors
     const bg = darkMode ? '#0a0a0a' : '#f8f9fa';
-    const text = darkMode ? '#e0e0e0' : '#1a1a2e';
+    const txt = darkMode ? '#e0e0e0' : '#1a1a2e';
     const link = darkMode ? '#4db6ac' : '#00897b';
     const cardBg = darkMode ? '#1e1e2d' : '#ffffff';
     const border = darkMode ? '#2d2d44' : '#e0e0e0';
     const evenRow = darkMode ? '#151520' : '#f5f5f5';
 
-    const cleanupCSS = '<style id="hadith-cleanup">' +
+    const hideSelectors =
       '.site-header,header,.jumbotron,nav,.nav,.navbar,.navigation,.menu,' +
       '.breadcrumb,.breadcrumbs,footer,.footer,.site-footer,' +
       '.sidebar,.widget,.widget-area,#secondary,' +
@@ -250,28 +250,48 @@ function BookReader({
       '[class*="social"],[class*="share"],' +
       '[class*="terrorisme"],[class*="terrorism"],' +
       '.comment-respond,#respond,.comments-area,' +
-      '.wp-block-image img[src*="logo"],' +
-      'img[src*="logo"],img[src*="bg.png"]{display:none!important}' +
-      'body{padding:12px!important;margin:0!important;' +
-        'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;' +
-        'background:' + bg + '!important;color:' + text + '!important;' +
-        'line-height:1.7!important;font-size:15px!important}' +
+      'img[src*="logo"],img[src*="bg.png"]';
+
+    const cleanupCSS = '<style id="hadith-cleanup">' +
+      hideSelectors + '{display:none!important}' +
       '.container,.content,main,article,.main-content,[role="main"]{' +
         'max-width:100%!important;padding:0!important;margin:0!important;' +
         'width:100%!important;float:none!important}' +
       '.row{margin:0!important}' +
       'a{color:' + link + '!important;text-decoration:none}' +
-      'h1,h2,h3,h4,h5,h6{color:' + text + '!important;margin-top:20px!important}' +
-      'p,span,div,li,td,th{color:' + text + '!important}' +
+      'h1,h2,h3,h4,h5,h6{color:' + txt + '!important;margin-top:20px!important}' +
+      'p,span,li,td,th{color:' + txt + '!important}' +
       'table{width:100%!important;border-collapse:collapse!important;margin:12px 0!important}' +
       'td,th{padding:10px!important;border:1px solid ' + border + '!important}' +
       'tr:nth-child(even){background:' + evenRow + '!important}' +
       'img{max-width:100%!important;height:auto!important}' +
       '.card,[class*="card"],[class*="panel"]{background:' + cardBg + '!important;' +
         'border-color:' + border + '!important;border-radius:8px}' +
-      '[lang="ar"],.arabic,.arab{font-size:20px!important;line-height:2!important;direction:rtl}' +
+      '[lang="ar"],.arabic,.arab{font-size:20px!important;line-height:2!important}' +
       '</style>';
 
+    if (Platform.OS === 'web') {
+      // For web (dangerouslySetInnerHTML): extract body + inline styles only
+      // Pull out any <style> and <link rel="stylesheet"> from the original
+      const origStyles = (cleaned.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || []).join('');
+      const linkTags = (cleaned.match(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi) || [])
+        .map((tag: string) => tag.replace(/href=["'](?!https?:\/\/)/i, 'href="https://bibliotheque-islamique.fr/'))
+        .join('');
+
+      // Extract body content
+      const bodyMatch = cleaned.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const bodyContent = bodyMatch ? bodyMatch[1] : cleaned;
+
+      // Build final output: base + styles + cleanup CSS + body content
+      return '<base href="https://bibliotheque-islamique.fr/">' +
+        linkTags + origStyles + cleanupCSS +
+        '<div style="padding:12px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;' +
+        'background:' + bg + ';color:' + txt + ';line-height:1.7;font-size:15px">' +
+        bodyContent + '</div>';
+    }
+
+    // For native (WebView): keep full HTML, inject base + CSS + JS
+    const baseTag = '<base href="https://bibliotheque-islamique.fr/">';
     const cleanupJS = '<script>(function(){' +
       'var pats=["En Quelques mots","Liens utiles","Non au Terrorisme",' +
         '"Tous droits","Design,","Abou Z","MENU",' +
@@ -292,21 +312,25 @@ function BookReader({
       '});' +
     '})();</script>';
 
-    // Inject <base> tag so relative URLs (CSS, images) resolve correctly + cleanup CSS
-    const baseTag = '<base href="https://bibliotheque-islamique.fr/">';
-    if (/<head[^>]*>/i.test(cleaned)) {
-      cleaned = cleaned.replace(/<head[^>]*>/i, '$&' + baseTag + cleanupCSS);
-    } else {
-      cleaned = baseTag + cleanupCSS + cleaned;
-    }
+    // Add body styles for native
+    const bodyCSS = 'body{padding:12px!important;margin:0!important;' +
+      'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif!important;' +
+      'background:' + bg + '!important;color:' + txt + '!important;' +
+      'line-height:1.7!important;font-size:15px!important}';
+    const fullCSS = '<style id="hadith-cleanup">' +
+      hideSelectors + '{display:none!important}' + bodyCSS +
+      '</style>';
 
-    // Inject cleanup JS before </body>
+    if (/<head[^>]*>/i.test(cleaned)) {
+      cleaned = cleaned.replace(/<head[^>]*>/i, '$&' + baseTag + fullCSS);
+    } else {
+      cleaned = baseTag + fullCSS + cleaned;
+    }
     if (/<\/body>/i.test(cleaned)) {
       cleaned = cleaned.replace(/<\/body>/i, cleanupJS + '</body>');
     } else {
       cleaned = cleaned + cleanupJS;
     }
-
     return cleaned;
   };
 
@@ -380,20 +404,15 @@ function BookReader({
         {/* Hadith content */}
         {!loading && !hasError && contentHtml && (
           Platform.OS === 'web' ? (
-            <View style={readerStyles.iframeWrap}>
-              <iframe
-                srcDoc={contentHtml}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  border: 'none',
-                } as any}
-                title={title}
-              />
-            </View>
+            <div
+              style={{
+                flex: '1 1 auto',
+                overflow: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                minHeight: 0,
+              } as any}
+              dangerouslySetInnerHTML={{ __html: contentHtml }}
+            />
           ) : (
             <WebView
               ref={webViewRef}
@@ -447,11 +466,6 @@ const readerStyles = StyleSheet.create({
   },
   retryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   webview: { flex: 1 },
-  iframeWrap: {
-    flex: 1,
-    position: 'relative' as const,
-    overflow: 'hidden' as const,
-  },
 });
 
 // ─── MAIN SCREEN ───────────────────────────────────────────────────
