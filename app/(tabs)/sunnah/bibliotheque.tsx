@@ -10,10 +10,9 @@ import {
   Animated,
   Modal,
   Share,
-  Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
@@ -158,7 +157,7 @@ const progressStyles = StyleSheet.create({
   },
 });
 
-// ─── WebView Reader Modal ──────────────────────────────────────────
+// ─── In-App Hadith Reader ──────────────────────────────────────────
 function BookReader({
   visible,
   url,
@@ -172,9 +171,9 @@ function BookReader({
 }) {
   const { darkMode } = useSettings();
   const insets = useSafeAreaInsets();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const [canGoBack, setCanGoBack] = useState(false);
+  const [contentHtml, setContentHtml] = useState<string | null>(null);
   const webViewRef = useRef<WebView>(null);
 
   const colors = {
@@ -186,136 +185,141 @@ function BookReader({
     accent: '#00897b',
   };
 
-  // JavaScript to inject into WebView to clean up the website
-  // Hides header, nav, menu, jumbotron, sidebar, footer — keeps only hadith content
-  const darkModeCSS = darkMode
-    ? 'background:#0a0a0a !important;color:#e0e0e0 !important;'
-    : 'background:#f8f9fa !important;';
+  useEffect(() => {
+    if (visible && url) {
+      fetchContent();
+    }
+    if (!visible) {
+      setContentHtml(null);
+      setHasError(false);
+    }
+  }, [visible, url]);
 
-  const darkModeExtras = darkMode
-    ? 'a{color:#4db6ac !important;}' +
-      'h1,h2,h3,h4,h5,h6,p,span,div,li,td,th{color:#e0e0e0 !important;}' +
-      '.card,[class*="card"],[class*="panel"]{background:#1e1e2d !important;border-color:#2d2d44 !important;}' +
-      'table,tr,td,th{border-color:#2d2d44 !important;}'
-    : '';
+  const fetchContent = async () => {
+    setLoading(true);
+    setHasError(false);
+    try {
+      // On web, use CORS proxy since browser blocks cross-origin fetch
+      const fetchUrl = Platform.OS === 'web'
+        ? 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url)
+        : url;
+      const response = await fetch(fetchUrl);
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      const rawHtml = await response.text();
+      const cleaned = cleanupHtml(rawHtml);
+      setContentHtml(cleaned);
+    } catch (_e) {
+      setHasError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const CLEANUP_JS = '(function(){' +
-    'var s=document.createElement("style");' +
-    's.textContent="' +
+  const cleanupHtml = (html: string): string => {
+    // Remove all script and noscript tags
+    let cleaned = html.replace(/<script[\s\S]*?<\/script>/gi, '');
+    cleaned = cleaned.replace(/<noscript[\s\S]*?<\/noscript>/gi, '');
+
+    // Theme colors
+    const bg = darkMode ? '#0a0a0a' : '#f8f9fa';
+    const text = darkMode ? '#e0e0e0' : '#1a1a2e';
+    const link = darkMode ? '#4db6ac' : '#00897b';
+    const cardBg = darkMode ? '#1e1e2d' : '#ffffff';
+    const border = darkMode ? '#2d2d44' : '#e0e0e0';
+    const evenRow = darkMode ? '#151520' : '#f5f5f5';
+
+    const cleanupCSS = '<style id="hadith-cleanup">' +
       '.site-header,header,.jumbotron,nav,.nav,.navbar,.navigation,.menu,' +
       '.breadcrumb,.breadcrumbs,footer,.footer,.site-footer,' +
-      '.sidebar,.widget,.widget-area,' +
+      '.sidebar,.widget,.widget-area,#secondary,' +
       '#cookie-notice,.cookie-banner,.cookie-consent,' +
-      '[class*=cookie],[id*=cookie],[class*=popup],[class*=modal],' +
-      '[class*=subscribe],[class*=newsletter],[class*=social],[class*=share],' +
-      '[class*=terrorisme],[class*=terrorism]{display:none !important;}' +
-      'body{padding:8px !important;margin:0 !important;' +
-        'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif !important;' +
-        darkModeCSS + '}' +
-      '.container,.content,main,article,.main-content,[role=main]{' +
-        'max-width:100% !important;padding:0 !important;margin:0 !important;' +
-        'width:100% !important;float:none !important;}' +
-      '.row{margin:0 !important;}' +
-      'img{max-width:100% !important;height:auto !important;}' +
-      'a{color:#00897b !important;}' +
-      darkModeExtras +
-    '";' +
-    'document.head.appendChild(s);' +
-    'function h(){' +
-      'var els=document.querySelectorAll("h2,h3,h4,h5,h6,p,div,section,aside");' +
+      '[class*="cookie"],[id*="cookie"],[class*="popup"],' +
+      '[class*="subscribe"],[class*="newsletter"],' +
+      '[class*="social"],[class*="share"],' +
+      '[class*="terrorisme"],[class*="terrorism"],' +
+      '.comment-respond,#respond,.comments-area,' +
+      '.wp-block-image img[src*="logo"],' +
+      'img[src*="logo"],img[src*="bg.png"]{display:none!important}' +
+      'body{padding:12px!important;margin:0!important;' +
+        'font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif!important;' +
+        'background:' + bg + '!important;color:' + text + '!important;' +
+        'line-height:1.7!important;font-size:15px!important}' +
+      '.container,.content,main,article,.main-content,[role="main"]{' +
+        'max-width:100%!important;padding:0!important;margin:0!important;' +
+        'width:100%!important;float:none!important}' +
+      '.row{margin:0!important}' +
+      'a{color:' + link + '!important;text-decoration:none}' +
+      'h1,h2,h3,h4,h5,h6{color:' + text + '!important;margin-top:20px!important}' +
+      'p,span,div,li,td,th{color:' + text + '!important}' +
+      'table{width:100%!important;border-collapse:collapse!important;margin:12px 0!important}' +
+      'td,th{padding:10px!important;border:1px solid ' + border + '!important}' +
+      'tr:nth-child(even){background:' + evenRow + '!important}' +
+      'img{max-width:100%!important;height:auto!important}' +
+      '.card,[class*="card"],[class*="panel"]{background:' + cardBg + '!important;' +
+        'border-color:' + border + '!important;border-radius:8px}' +
+      '[lang="ar"],.arabic,.arab{font-size:20px!important;line-height:2!important;direction:rtl}' +
+      '</style>';
+
+    const cleanupJS = '<script>(function(){' +
       'var pats=["En Quelques mots","Liens utiles","Non au Terrorisme",' +
         '"Tous droits","Design,","Abou Z","MENU",' +
         '"Apprenez votre religion","hadiths authentifi"];' +
-      'els.forEach(function(e){' +
-        'var t=(e.textContent||"").trim();' +
+      'document.querySelectorAll("h2,h3,h4,h5,h6,p,div,section,aside").forEach(function(el){' +
+        'var t=(el.textContent||"").trim();' +
         'for(var i=0;i<pats.length;i++){' +
-          'if(t.indexOf(pats[i])===0||t===pats[i]){e.style.display="none";break;}' +
+          'if(t.indexOf(pats[i])===0||t===pats[i]){el.style.display="none";break;}' +
         '}' +
       '});' +
-      'document.querySelectorAll("img[src*=logo],img[src*=bg\\\\.png]").forEach(function(i){' +
-        'var p=i.closest("div,header,a")||i;p.style.display="none";' +
+      'document.querySelectorAll("img").forEach(function(img){' +
+        'var s=img.getAttribute("src")||"";' +
+        'if(s.indexOf("logo")!==-1||s.indexOf("bg.png")!==-1){' +
+          'var p=img.closest("div,header,a")||img;p.style.display="none";}' +
       '});' +
       'document.querySelectorAll("a").forEach(function(a){' +
         'if((a.textContent||"").trim()==="MENU")a.style.display="none";' +
       '});' +
-    '}' +
-    'h();' +
-    'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",h);' +
-    'window.addEventListener("load",h);' +
-    'var o=new MutationObserver(function(){h();});' +
-    'o.observe(document.body,{childList:true,subtree:true});' +
-  '})();true;';
+    '})();</script>';
 
-  const handleBack = () => {
-    if (canGoBack && webViewRef.current) {
-      webViewRef.current.goBack();
+    // Inject cleanup CSS into <head>
+    if (/<head[^>]*>/i.test(cleaned)) {
+      cleaned = cleaned.replace(/<head[^>]*>/i, '$&' + cleanupCSS);
     } else {
-      onClose();
+      cleaned = cleanupCSS + cleaned;
     }
+
+    // Inject cleanup JS before </body>
+    if (/<\/body>/i.test(cleaned)) {
+      cleaned = cleaned.replace(/<\/body>/i, cleanupJS + '</body>');
+    } else {
+      cleaned = cleaned + cleanupJS;
+    }
+
+    return cleaned;
   };
 
   const handleShare = async () => {
     try {
-      await Share.share({ message: `${title}\n${url}`, url });
+      await Share.share({ message: title + '\n' + url, url });
     } catch (_e) {
       // ignore
     }
   };
 
-  // On web, show a modal with book info and "Open in Browser" button
-  if (Platform.OS === 'web') {
-    return (
-      <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-        <View style={readerStyles.webOverlay}>
-          <View style={[readerStyles.webModal, { backgroundColor: colors.header, borderColor: colors.headerBorder }]}>
-            <TouchableOpacity style={readerStyles.webCloseBtn} onPress={onClose}>
-              <Ionicons name="close" size={22} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <View style={[readerStyles.webIconCircle, { backgroundColor: 'rgba(0,137,123,0.12)' }]}>
-              <FontAwesome5 name="book-open" size={28} color={colors.accent} />
-            </View>
-
-            <Text style={[readerStyles.webTitle, { color: colors.text }]}>{title}</Text>
-            <Text style={[readerStyles.webUrl, { color: colors.textSecondary }]}>
-              bibliotheque-islamique.fr
-            </Text>
-
-            <TouchableOpacity
-              style={[readerStyles.webOpenBtn, { backgroundColor: colors.accent }]}
-              onPress={() => {
-                Linking.openURL(url);
-                onClose();
-              }}
-            >
-              <MaterialCommunityIcons name="open-in-new" size={18} color="#fff" />
-              <Text style={readerStyles.webOpenBtnText}>Ouvrir dans le navigateur</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={readerStyles.webCancelBtn} onPress={onClose}>
-              <Text style={[readerStyles.webCancelText, { color: colors.textSecondary }]}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-    );
-  }
-
-  // Native: use WebView with injected cleanup JS
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={[readerStyles.container, { backgroundColor: colors.background }]}>
+        {/* Header */}
         <View
           style={[
             readerStyles.header,
             {
               backgroundColor: colors.header,
               borderBottomColor: colors.headerBorder,
-              paddingTop: insets.top + 6,
+              paddingTop: (Platform.OS === 'web' ? 12 : insets.top) + 6,
             },
           ]}
         >
-          <TouchableOpacity style={readerStyles.headerBtn} onPress={handleBack}>
+          <TouchableOpacity style={readerStyles.headerBtn} onPress={onClose}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={readerStyles.headerTitleWrap}>
@@ -331,52 +335,55 @@ function BookReader({
           </TouchableOpacity>
         </View>
 
-        {loading && !hasError && (
+        {/* Loading */}
+        {loading && (
           <View style={readerStyles.loadingWrap}>
             <ActivityIndicator size="large" color={colors.accent} />
             <Text style={[readerStyles.loadingText, { color: colors.textSecondary }]}>
-              Chargement...
+              Chargement des hadiths...
             </Text>
           </View>
         )}
 
-        {hasError && (
+        {/* Error */}
+        {hasError && !loading && (
           <View style={readerStyles.errorWrap}>
             <Ionicons name="cloud-offline-outline" size={48} color={colors.textSecondary} />
             <Text style={[readerStyles.errorTitle, { color: colors.text }]}>
               Impossible de charger la page
             </Text>
             <Text style={[readerStyles.errorText, { color: colors.textSecondary }]}>
-              V&eacute;rifiez votre connexion internet et r&eacute;essayez.
+              Vérifiez votre connexion internet et réessayez.
             </Text>
             <TouchableOpacity
               style={[readerStyles.retryBtn, { backgroundColor: colors.accent }]}
-              onPress={() => {
-                setHasError(false);
-                setLoading(true);
-                webViewRef.current?.reload();
-              }}
+              onPress={fetchContent}
             >
-              <Text style={readerStyles.retryText}>R&eacute;essayer</Text>
+              <Text style={readerStyles.retryText}>Réessayer</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <WebView
-          ref={webViewRef}
-          source={{ uri: url }}
-          style={[readerStyles.webview, (loading || hasError) && readerStyles.webviewHidden]}
-          onLoadStart={() => { setLoading(true); setHasError(false); }}
-          onLoadEnd={() => setLoading(false)}
-          onError={() => { setLoading(false); setHasError(true); }}
-          onHttpError={() => { setLoading(false); setHasError(true); }}
-          onNavigationStateChange={(navState) => setCanGoBack(navState.canGoBack)}
-          injectedJavaScript={CLEANUP_JS}
-          javaScriptEnabled
-          domStorageEnabled
-          allowsInlineMediaPlayback
-          sharedCookiesEnabled
-        />
+        {/* Hadith content */}
+        {!loading && !hasError && contentHtml && (
+          Platform.OS === 'web' ? (
+            <iframe
+              srcDoc={contentHtml}
+              style={{ flex: 1, border: 'none', width: '100%', height: '100%' } as any}
+              sandbox="allow-same-origin allow-scripts"
+              title={title}
+            />
+          ) : (
+            <WebView
+              ref={webViewRef}
+              source={{ html: contentHtml, baseUrl: 'https://bibliotheque-islamique.fr' }}
+              style={readerStyles.webview}
+              originWhitelist={['*']}
+              javaScriptEnabled
+              domStorageEnabled
+            />
+          )
+        )}
       </View>
     </Modal>
   );
@@ -396,13 +403,10 @@ const readerStyles = StyleSheet.create({
   headerTitle: { fontSize: 15, fontWeight: '600' },
   headerUrl: { fontSize: 12, marginTop: 1 },
   loadingWrap: {
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10,
-    gap: 10,
+    gap: 12,
   },
   loadingText: { fontSize: 14 },
   errorWrap: {
@@ -422,73 +426,6 @@ const readerStyles = StyleSheet.create({
   },
   retryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   webview: { flex: 1 },
-  webviewHidden: { opacity: 0, height: 0 },
-
-  // Web modal styles
-  webOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  webModal: {
-    width: '100%',
-    maxWidth: 380,
-    borderRadius: 20,
-    padding: 28,
-    alignItems: 'center',
-    borderWidth: 1,
-    position: 'relative' as const,
-  },
-  webCloseBtn: {
-    position: 'absolute' as const,
-    top: 12,
-    right: 12,
-    padding: 6,
-  },
-  webIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  webTitle: {
-    fontSize: 18,
-    fontWeight: '700' as const,
-    textAlign: 'center' as const,
-    marginBottom: 4,
-  },
-  webUrl: {
-    fontSize: 13,
-    marginBottom: 24,
-  },
-  webOpenBtn: {
-    flexDirection: 'row' as const,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 12,
-    gap: 8,
-    width: '100%',
-  },
-  webOpenBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600' as const,
-  },
-  webCancelBtn: {
-    marginTop: 14,
-    padding: 8,
-  },
-  webCancelText: {
-    fontSize: 14,
-    fontWeight: '500' as const,
-  },
 });
 
 // ─── MAIN SCREEN ───────────────────────────────────────────────────
