@@ -199,13 +199,37 @@ function BookReader({
     setLoading(true);
     setHasError(false);
     try {
-      // On web, use CORS proxy since browser blocks cross-origin fetch
-      const fetchUrl = Platform.OS === 'web'
-        ? 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url)
-        : url;
-      const response = await fetch(fetchUrl);
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      const rawHtml = await response.text();
+      let rawHtml = '';
+      if (Platform.OS === 'web') {
+        // Try multiple CORS proxies with timeout for reliability
+        const proxies = [
+          'https://corsproxy.io/?' + encodeURIComponent(url),
+          'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+        ];
+        let fetched = false;
+        for (const proxyUrl of proxies) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 15000);
+            const response = await fetch(proxyUrl, { signal: controller.signal });
+            clearTimeout(timeout);
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            rawHtml = await response.text();
+            if (rawHtml.length > 100) { fetched = true; break; }
+          } catch (_proxyErr) {
+            continue;
+          }
+        }
+        if (!fetched) throw new Error('All proxies failed');
+      } else {
+        // Native: fetch directly (no CORS restrictions)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        rawHtml = await response.text();
+      }
       const cleaned = cleanupHtml(rawHtml);
       setContentHtml(cleaned);
     } catch (_e) {
@@ -280,11 +304,12 @@ function BookReader({
       '});' +
     '})();</script>';
 
-    // Inject cleanup CSS into <head>
+    // Inject <base> tag so relative URLs (CSS, images) resolve correctly + cleanup CSS
+    const baseTag = '<base href="https://bibliotheque-islamique.fr/">';
     if (/<head[^>]*>/i.test(cleaned)) {
-      cleaned = cleaned.replace(/<head[^>]*>/i, '$&' + cleanupCSS);
+      cleaned = cleaned.replace(/<head[^>]*>/i, '$&' + baseTag + cleanupCSS);
     } else {
-      cleaned = cleanupCSS + cleaned;
+      cleaned = baseTag + cleanupCSS + cleaned;
     }
 
     // Inject cleanup JS before </body>
@@ -367,12 +392,20 @@ function BookReader({
         {/* Hadith content */}
         {!loading && !hasError && contentHtml && (
           Platform.OS === 'web' ? (
-            <iframe
-              srcDoc={contentHtml}
-              style={{ flex: 1, border: 'none', width: '100%', height: '100%' } as any}
-              sandbox="allow-same-origin allow-scripts"
-              title={title}
-            />
+            <View style={readerStyles.iframeWrap}>
+              <iframe
+                srcDoc={contentHtml}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  border: 'none',
+                } as any}
+                title={title}
+              />
+            </View>
           ) : (
             <WebView
               ref={webViewRef}
@@ -426,6 +459,11 @@ const readerStyles = StyleSheet.create({
   },
   retryText: { color: '#fff', fontSize: 15, fontWeight: '600' },
   webview: { flex: 1 },
+  iframeWrap: {
+    flex: 1,
+    position: 'relative' as const,
+    overflow: 'hidden' as const,
+  },
 });
 
 // ─── MAIN SCREEN ───────────────────────────────────────────────────
