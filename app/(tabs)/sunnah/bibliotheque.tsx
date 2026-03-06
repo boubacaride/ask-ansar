@@ -201,26 +201,14 @@ function BookReader({
     try {
       let rawHtml = '';
       if (Platform.OS === 'web') {
-        // Try multiple CORS proxies with timeout for reliability
-        const proxies = [
-          'https://corsproxy.io/?' + encodeURIComponent(url),
-          'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-        ];
-        let fetched = false;
-        for (const proxyUrl of proxies) {
-          try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 15000);
-            const response = await fetch(proxyUrl, { signal: controller.signal });
-            clearTimeout(timeout);
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            rawHtml = await response.text();
-            if (rawHtml.length > 100) { fetched = true; break; }
-          } catch (_proxyErr) {
-            continue;
-          }
-        }
-        if (!fetched) throw new Error('All proxies failed');
+        // Use our own Vercel serverless proxy (same domain = no CORS)
+        const proxyUrl = '/api/proxy?url=' + encodeURIComponent(url);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 20000);
+        const response = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeout);
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        rawHtml = await response.text();
       } else {
         // Native: fetch directly (no CORS restrictions)
         const controller = new AbortController();
