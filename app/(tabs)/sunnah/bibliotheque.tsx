@@ -157,11 +157,11 @@ const progressStyles = StyleSheet.create({
   },
 });
 
-// ─── In-App Hadith Reader ──────────────────────────────────────────
+// ─── In-App Hadith Reader with Navigation ─────────────────────────
 function BookReader({
   visible,
-  url,
-  title,
+  url: initialUrl,
+  title: initialTitle,
   onClose,
 }: {
   visible: boolean;
@@ -174,7 +174,11 @@ function BookReader({
   const [loading, setLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [contentHtml, setContentHtml] = useState<string | null>(null);
+  const [currentUrl, setCurrentUrl] = useState(initialUrl);
+  const [currentTitle, setCurrentTitle] = useState(initialTitle);
+  const [history, setHistory] = useState<{ url: string; title: string }[]>([]);
   const webViewRef = useRef<WebView>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const colors = {
     background: darkMode ? '#0a0a0a' : '#f5f5f5',
@@ -185,24 +189,92 @@ function BookReader({
     accent: '#00897b',
   };
 
+  // Reset when modal opens with new book
   useEffect(() => {
-    if (visible && url) {
-      fetchContent();
+    if (visible && initialUrl) {
+      setCurrentUrl(initialUrl);
+      setCurrentTitle(initialTitle);
+      setHistory([]);
     }
     if (!visible) {
       setContentHtml(null);
       setHasError(false);
+      setHistory([]);
     }
-  }, [visible, url]);
+  }, [visible, initialUrl]);
 
-  const fetchContent = async () => {
+  // Fetch content whenever currentUrl changes
+  useEffect(() => {
+    if (visible && currentUrl) {
+      fetchContent(currentUrl);
+    }
+  }, [currentUrl, visible]);
+
+  // Navigate to a link within the reader
+  const navigateInReader = (newUrl: string) => {
+    setHistory((prev) => [...prev, { url: currentUrl, title: currentTitle }]);
+    // Try to extract a title from the URL
+    const slug = newUrl.split('/').pop()?.replace(/-/g, ' ').replace(/#.*/, '') || '';
+    const pageTitle = slug.charAt(0).toUpperCase() + slug.slice(1);
+    setCurrentTitle(pageTitle || currentTitle);
+    setCurrentUrl(newUrl);
+  };
+
+  // Go back in history or close modal
+  const handleBack = () => {
+    if (history.length > 0) {
+      const prev = history[history.length - 1];
+      setHistory((h) => h.slice(0, -1));
+      setCurrentTitle(prev.title);
+      setCurrentUrl(prev.url);
+    } else {
+      onClose();
+    }
+  };
+
+  // Resolve a href to a full URL
+  const resolveUrl = (href: string): string | null => {
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) {
+      return null;
+    }
+    let fullUrl = href;
+    if (href.startsWith('/')) {
+      fullUrl = 'https://bibliotheque-islamique.fr' + href;
+    } else if (!href.startsWith('http')) {
+      fullUrl = 'https://bibliotheque-islamique.fr/' + href;
+    }
+    // Only handle bibliotheque-islamique.fr links
+    if (fullUrl.includes('bibliotheque-islamique.fr')) {
+      return fullUrl;
+    }
+    return null;
+  };
+
+  // Web: intercept link clicks inside rendered HTML
+  const handleWebContentClick = (e: any) => {
+    const target = e.target as HTMLElement;
+    const anchor = target.closest ? target.closest('a') : null;
+    if (anchor) {
+      const href = anchor.getAttribute('href');
+      if (href) {
+        e.preventDefault();
+        e.stopPropagation();
+        const resolved = resolveUrl(href);
+        if (resolved) {
+          navigateInReader(resolved);
+        }
+      }
+    }
+  };
+
+  const fetchContent = async (pageUrl: string) => {
     setLoading(true);
     setHasError(false);
+    setContentHtml(null);
     try {
       let rawHtml = '';
       if (Platform.OS === 'web') {
-        // Use our own Vercel serverless proxy (same domain = no CORS)
-        const proxyUrl = '/api/proxy?url=' + encodeURIComponent(url);
+        const proxyUrl = '/api/proxy?url=' + encodeURIComponent(pageUrl);
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
         const response = await fetch(proxyUrl, { signal: controller.signal });
@@ -210,14 +282,21 @@ function BookReader({
         if (!response.ok) throw new Error('HTTP ' + response.status);
         rawHtml = await response.text();
       } else {
-        // Native: fetch directly (no CORS restrictions)
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(pageUrl, { signal: controller.signal });
         clearTimeout(timeout);
         if (!response.ok) throw new Error('HTTP ' + response.status);
         rawHtml = await response.text();
       }
+
+      // Extract page title from HTML
+      const titleMatch = rawHtml.match(/<title[^>]*>([^<]*)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        const extracted = titleMatch[1].replace(/\s*[-–|].*$/, '').trim();
+        if (extracted) setCurrentTitle(extracted);
+      }
+
       const cleaned = cleanupHtml(rawHtml);
       setContentHtml(cleaned);
     } catch (_e) {
@@ -336,14 +415,27 @@ function BookReader({
 
   const handleShare = async () => {
     try {
-      await Share.share({ message: title + '\n' + url, url });
+      await Share.share({ message: currentTitle + '\n' + currentUrl, url: currentUrl });
     } catch (_e) {
       // ignore
     }
   };
 
+  // Native WebView: intercept navigation requests to stay in-app
+  const handleWebViewNavigationRequest = (request: any) => {
+    const navUrl = request.url;
+    // Allow initial load and same-page anchors
+    if (navUrl === 'about:blank' || navUrl.startsWith('data:')) return true;
+    // If it's a bibliotheque-islamique.fr link, handle in-app
+    if (navUrl.includes('bibliotheque-islamique.fr') && navUrl !== currentUrl) {
+      navigateInReader(navUrl);
+      return false; // block WebView from navigating
+    }
+    return true;
+  };
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" onRequestClose={handleBack}>
       <View style={[readerStyles.container, { backgroundColor: colors.background }]}>
         {/* Header */}
         <View
@@ -356,15 +448,15 @@ function BookReader({
             },
           ]}
         >
-          <TouchableOpacity style={readerStyles.headerBtn} onPress={onClose}>
+          <TouchableOpacity style={readerStyles.headerBtn} onPress={handleBack}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={readerStyles.headerTitleWrap}>
             <Text style={[readerStyles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-              {title}
+              {currentTitle}
             </Text>
             <Text style={[readerStyles.headerUrl, { color: colors.textSecondary }]} numberOfLines={1}>
-              bibliotheque-islamique.fr
+              {history.length > 0 ? '← ' + history.length + ' page(s)  •  ' : ''}bibliotheque-islamique.fr
             </Text>
           </View>
           <TouchableOpacity style={readerStyles.headerBtn} onPress={handleShare}>
@@ -394,7 +486,7 @@ function BookReader({
             </Text>
             <TouchableOpacity
               style={[readerStyles.retryBtn, { backgroundColor: colors.accent }]}
-              onPress={fetchContent}
+              onPress={() => fetchContent(currentUrl)}
             >
               <Text style={readerStyles.retryText}>Réessayer</Text>
             </TouchableOpacity>
@@ -405,6 +497,8 @@ function BookReader({
         {!loading && !hasError && contentHtml && (
           Platform.OS === 'web' ? (
             <div
+              ref={contentRef as any}
+              onClick={handleWebContentClick}
               style={{
                 flex: '1 1 auto',
                 overflow: 'auto',
@@ -421,6 +515,7 @@ function BookReader({
               originWhitelist={['*']}
               javaScriptEnabled
               domStorageEnabled
+              onShouldStartLoadWithRequest={handleWebViewNavigationRequest}
             />
           )
         )}
