@@ -189,12 +189,13 @@ function BookReader({
     accent: '#00897b',
   };
 
-  // Reset when modal opens with new book
+  // Reset when modal opens with new book — fetch directly to avoid race condition
   useEffect(() => {
     if (visible && initialUrl) {
       setCurrentUrl(initialUrl);
       setCurrentTitle(initialTitle);
       setHistory([]);
+      fetchContent(initialUrl);
     }
     if (!visible) {
       setContentHtml(null);
@@ -203,21 +204,14 @@ function BookReader({
     }
   }, [visible, initialUrl]);
 
-  // Fetch content whenever currentUrl changes
-  useEffect(() => {
-    if (visible && currentUrl) {
-      fetchContent(currentUrl);
-    }
-  }, [currentUrl, visible]);
-
-  // Navigate to a link within the reader
+  // Navigate to a link within the reader — fetch directly
   const navigateInReader = (newUrl: string) => {
     setHistory((prev) => [...prev, { url: currentUrl, title: currentTitle }]);
-    // Try to extract a title from the URL
     const slug = newUrl.split('/').pop()?.replace(/-/g, ' ').replace(/#.*/, '') || '';
     const pageTitle = slug.charAt(0).toUpperCase() + slug.slice(1);
     setCurrentTitle(pageTitle || currentTitle);
     setCurrentUrl(newUrl);
+    fetchContent(newUrl);
   };
 
   // Go back in history or close modal
