@@ -268,7 +268,9 @@ function BookReader({
     try {
       let rawHtml = '';
       if (Platform.OS === 'web') {
-        const proxyUrl = '/api/proxy?url=' + encodeURIComponent(pageUrl);
+        // Use absolute URL to avoid <base> tag in rendered content redirecting fetches
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const proxyUrl = origin + '/api/proxy?url=' + encodeURIComponent(pageUrl);
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
         const response = await fetch(proxyUrl, { signal: controller.signal });
@@ -345,7 +347,7 @@ function BookReader({
 
     if (Platform.OS === 'web') {
       // For web (dangerouslySetInnerHTML): extract body + inline styles only
-      // Pull out any <style> and <link rel="stylesheet"> from the original
+      // NO <base> tag — it would corrupt document.baseURI and break fetch() calls
       const origStyles = (cleaned.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || []).join('');
       const linkTags = (cleaned.match(/<link[^>]*rel=["']stylesheet["'][^>]*>/gi) || [])
         .map((tag: string) => tag.replace(/href=["'](?!https?:\/\/)/i, 'href="https://bibliotheque-islamique.fr/'))
@@ -353,11 +355,14 @@ function BookReader({
 
       // Extract body content
       const bodyMatch = cleaned.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-      const bodyContent = bodyMatch ? bodyMatch[1] : cleaned;
+      let bodyContent = bodyMatch ? bodyMatch[1] : cleaned;
 
-      // Build final output: base + styles + cleanup CSS + body content
-      return '<base href="https://bibliotheque-islamique.fr/">' +
-        linkTags + origStyles + cleanupCSS +
+      // Rewrite relative URLs to absolute (since we can't use <base> on web)
+      bodyContent = bodyContent
+        .replace(/href=["']\/([^"']*)/gi, 'href="https://bibliotheque-islamique.fr/$1')
+        .replace(/src=["']\/([^"']*)/gi, 'src="https://bibliotheque-islamique.fr/$1');
+
+      return linkTags + origStyles + cleanupCSS +
         '<div style="padding:12px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;' +
         'background:' + bg + ';color:' + txt + ';line-height:1.7;font-size:15px">' +
         bodyContent + '</div>';
