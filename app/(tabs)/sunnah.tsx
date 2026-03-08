@@ -47,10 +47,11 @@ export default function SunnahScreen() {
   const [seerahReaderVisible, setSeerahReaderVisible] = useState(false);
   const [searchModalVisible, setSearchModalVisible] = useState(false);
 
-  // Animated values for Hadith button
+  // Animated values for Hadith & Prophets buttons
   const hadithBorderAnim = useRef(new Animated.Value(0)).current;
   const hadithGlow = useRef(new Animated.Value(0.3)).current;
   const hadithScale = useRef(new Animated.Value(1)).current;
+  const prophetsScale = useRef(new Animated.Value(1)).current;
   const hadithStar1 = useRef(new Animated.Value(0.2)).current;
   const hadithStar2 = useRef(new Animated.Value(0.7)).current;
   const hadithStar3 = useRef(new Animated.Value(0.4)).current;
@@ -219,6 +220,67 @@ export default function SunnahScreen() {
                 onPress={() => router.push('/(tabs)/seerah-map')}
                 darkMode={darkMode}
               />
+
+              {/* ═══ L'histoire des prophètes — Animated Button ═══ */}
+              <View style={styles.hadithBtnContainer}>
+                <Animated.View style={[styles.hadithGlowLayer, { opacity: hadithGlow }]} />
+                <Animated.View style={{ transform: [{ scale: prophetsScale }] }}>
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => router.push('/(tabs)/sunnah/prophets-video')}
+                    onPressIn={() =>
+                      Animated.spring(prophetsScale, {
+                        toValue: 0.96,
+                        useNativeDriver: true,
+                        tension: 120,
+                        friction: 8,
+                      }).start()
+                    }
+                    onPressOut={() =>
+                      Animated.spring(prophetsScale, {
+                        toValue: 1,
+                        useNativeDriver: true,
+                        tension: 120,
+                        friction: 8,
+                      }).start()
+                    }
+                  >
+                    <View style={styles.hadithBtnOuter}>
+                      <Animated.View
+                        style={[
+                          styles.hadithRotatingBg,
+                          { transform: [{ rotate: hadithBorderRotation }] },
+                        ]}
+                      >
+                        <LinearGradient
+                          colors={['#00897b', '#4db6ac', '#c9a227', '#daa520', '#4db6ac', '#00897b']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={{ width: '100%', height: '100%' }}
+                        />
+                      </Animated.View>
+                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#101824' : '#0b2b2b' }]}>
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 10, left: 60 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 16, right: 70 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, bottom: 16, right: 44 }]} />
+                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, top: 24, left: 100 }]} />
+                        <FontAwesome5
+                          name="film"
+                          size={15}
+                          color="#c9a227"
+                          style={styles.hadithBtnIcon}
+                        />
+                        <Text style={styles.hadithBtnText}>
+                          L'histoire des prophètes
+                        </Text>
+                        <Ionicons name="chevron-forward" size={16} color="rgba(201, 162, 39, 0.6)" />
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </Animated.View>
+              </View>
 
               {/* ═══ Hadiths du Messager d'Allah (ﷺ) — Animated Button ═══ */}
               <View style={styles.hadithBtnContainer}>
