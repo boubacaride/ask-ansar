@@ -54,3 +54,7 @@ supabase/.temp/
 # backend audio/test artifacts
 backend/reference_audio/
 backend/test_output.wav
+
+# scripts temp/output (large audio files)
+scripts/temp/
+scripts/output/

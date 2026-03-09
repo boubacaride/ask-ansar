@@ -1,0 +1,9 @@
+node_modules/
+.expo/
+scripts/temp/
+scripts/output/
+.claude/
+.bolt/
+.git/
+*.m4a
+*.wav

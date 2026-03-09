@@ -128,37 +128,53 @@ def parse_timestamp(ts):
 
 
 def parse_vtt(vtt_path):
+    """Parse YouTube VTT rolling captions, extracting only NEW text from each cue.
+
+    YouTube auto-captions use a rolling format where each cue has 2 lines:
+      Line 1 = previously completed text (DUPLICATE — skip)
+      Line 2 = new text with <c> word-timing tags (KEEP)
+    Cues with near-zero duration (< 0.1s) are transition snapshots — skip them.
+    """
     with open(vtt_path, encoding="utf-8") as f:
         content = f.read()
 
     segments = []
-    seen_texts = set()
 
-    # YouTube VTT has extra attrs after timestamps: "00:00:08.310 --> 00:00:08.320 align:start position:0%"
     pattern = r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n(.*?)(?=\n\n|\Z)'
     matches = re.findall(pattern, content, re.DOTALL)
 
-    for start_str, end_str, text in matches:
-        # Remove <c> word-timing tags and other HTML-like tags
-        text = re.sub(r'<[^>]+>', '', text).strip()
-        # Remove [Music] and other bracketed annotations
-        text = re.sub(r'\[.*?\]', '', text).strip()
-        if not text or text in seen_texts:
-            continue
-        lines = text.split('\n')
-        unique_lines = []
-        for line in lines:
-            line = line.strip()
-            if line and line not in unique_lines:
-                unique_lines.append(line)
-        text = ' '.join(unique_lines)
-        if not text:
-            continue
-
-        seen_texts.add(text)
+    for start_str, end_str, text_block in matches:
         start = parse_timestamp(start_str)
         end = parse_timestamp(end_str)
-        segments.append({"start": round(start, 2), "end": round(end, 2), "text": text})
+
+        # Skip near-zero duration cues (transition snapshots)
+        if end - start < 0.1:
+            continue
+
+        lines = text_block.strip().split('\n')
+
+        # Find the NEW text line — it contains <c> timing tags or <00:...> timestamps
+        new_text = ""
+        for line in lines:
+            if '<c>' in line or re.search(r'<\d{2}:\d{2}:\d{2}', line):
+                # This is the new content line — strip all tags
+                new_text = re.sub(r'<[^>]+>', '', line).strip()
+                break
+
+        if not new_text:
+            # No timing tags found — take the last non-empty line as fallback
+            for line in reversed(lines):
+                cleaned = re.sub(r'<[^>]+>', '', line).strip()
+                cleaned = re.sub(r'\[.*?\]', '', cleaned).strip()
+                if cleaned:
+                    new_text = cleaned
+                    break
+
+        # Remove [Music] and other bracketed annotations
+        new_text = re.sub(r'\[.*?\]', '', new_text).strip()
+
+        if new_text:
+            segments.append({"start": round(start, 2), "end": round(end, 2), "text": new_text})
 
     return merge_short_segments(segments)
 
@@ -357,7 +373,7 @@ def step3_translate(segments, work_dir, video_name):
 
 # --- Step 4: Generate TTS with Edge TTS (free, unlimited, concurrent) ---
 
-CONCURRENT_TTS = 10  # Number of parallel TTS tasks
+CONCURRENT_TTS = 3  # Number of parallel TTS tasks (low to avoid rate limits)
 
 
 async def generate_single_tts(text, out_mp3, voice=EDGE_TTS_VOICE):
@@ -437,6 +453,7 @@ def step4_tts(segments, work_dir, video_name):
         batch = pending[batch_start:batch_start + CONCURRENT_TTS]
 
         results = asyncio.run(generate_tts_batch(batch, tts_dir))
+        time.sleep(0.5)  # Throttle to avoid Edge TTS rate limiting
 
         for idx, seg, mp3_path, err in results:
             out_path = tts_dir / f"seg_{idx:04d}.wav"
