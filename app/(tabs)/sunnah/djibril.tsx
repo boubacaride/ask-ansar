@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,51 +16,64 @@ import { Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-ico
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
-import { WebView } from 'react-native-webview';
+import { Audio, AVPlaybackStatus } from 'expo-av';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
+const SUPABASE_STORAGE = 'https://pmgsmedzxfzifpyhbzfm.supabase.co/storage/v1/object/public/videos';
+
 interface VideoItem {
   id: string;
+  youtubeId: string;
   title: string;
   part: number;
   duration: string;
   description: string;
+  audioUrl: string;
 }
 
 const VIDEOS: VideoItem[] = [
   {
-    id: '2mICw81RlWI',
+    id: 'partie_1',
+    youtubeId: '2mICw81RlWI',
     title: "L'histoire de Djibril",
     part: 1,
     duration: '45:22',
     description:
       "D\u00e9couvrez le r\u00f4le essentiel de l'Ange Gabriel dans la r\u00e9v\u00e9lation divine et sa premi\u00e8re apparition aux proph\u00e8tes.",
+    audioUrl: `${SUPABASE_STORAGE}/djibril_partie_1_french.m4a`,
   },
   {
-    id: 'EVn1PJ2liVo',
+    id: 'partie_2',
+    youtubeId: 'EVn1PJ2liVo',
     title: "L'histoire de Djibril",
     part: 2,
     duration: '38:15',
     description:
       "Les interactions de Djibril avec le Proph\u00e8te Muhammad (\uFDFA) et les moments cl\u00e9s de la R\u00e9v\u00e9lation.",
+    audioUrl: `${SUPABASE_STORAGE}/djibril_partie_2_french.m4a`,
   },
   {
-    id: 'uCL4jgqHnN8',
+    id: 'partie_3',
+    youtubeId: 'uCL4jgqHnN8',
     title: "L'histoire de Djibril",
     part: 3,
     duration: '41:08',
     description:
       "Le r\u00f4le de Djibril au Jour du Jugement et ses apparitions sous forme humaine.",
+    audioUrl: `${SUPABASE_STORAGE}/djibril_partie_3_french.m4a`,
   },
 ];
 
-function getEmbedUrl(videoId: string): string {
-  return `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+function getThumbnailUrl(youtubeId: string): string {
+  return `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`;
 }
 
-function getThumbnailUrl(videoId: string): string {
-  return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+function formatTime(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 export default function DjibrilScreen() {
@@ -68,7 +81,11 @@ export default function DjibrilScreen() {
   const insets = useSafeAreaInsets();
   const [playerVisible, setPlayerVisible] = useState(false);
   const [currentVideo, setCurrentVideo] = useState<VideoItem | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [audioLoading, setAudioLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [positionMs, setPositionMs] = useState(0);
+  const [durationMs, setDurationMs] = useState(0);
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   const colors = {
     bg: darkMode ? '#0a0a0a' : '#f0f4f8',
@@ -81,16 +98,78 @@ export default function DjibrilScreen() {
 
   const videoHeight = Math.round(SCREEN_WIDTH * 9 / 16);
 
-  const openPlayer = useCallback((video: VideoItem) => {
-    setCurrentVideo(video);
-    setLoading(true);
-    setPlayerVisible(true);
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      if (soundRef.current) {
+        soundRef.current.unloadAsync();
+      }
+    };
   }, []);
 
-  const closePlayer = useCallback(() => {
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    setPositionMs(status.positionMillis);
+    setDurationMs(status.durationMillis ?? 0);
+    setIsPlaying(status.isPlaying);
+    if (status.didJustFinish) {
+      setIsPlaying(false);
+    }
+  }, []);
+
+  const openPlayer = useCallback(async (video: VideoItem) => {
+    setCurrentVideo(video);
+    setAudioLoading(true);
+    setPlayerVisible(true);
+    setPositionMs(0);
+    setDurationMs(0);
+    try {
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: video.audioUrl },
+        { shouldPlay: true, progressUpdateIntervalMillis: 500 },
+        onPlaybackStatusUpdate
+      );
+      soundRef.current = sound;
+      setIsPlaying(true);
+    } catch (error) {
+      console.warn('French audio error:', error);
+    }
+    setAudioLoading(false);
+  }, [onPlaybackStatusUpdate]);
+
+  const closePlayer = useCallback(async () => {
+    if (soundRef.current) {
+      await soundRef.current.stopAsync();
+      await soundRef.current.unloadAsync();
+      soundRef.current = null;
+    }
+    setIsPlaying(false);
     setPlayerVisible(false);
     setCurrentVideo(null);
   }, []);
+
+  const togglePlayPause = useCallback(async () => {
+    if (!soundRef.current) return;
+    if (isPlaying) {
+      await soundRef.current.pauseAsync();
+    } else {
+      await soundRef.current.playAsync();
+    }
+  }, [isPlaying]);
+
+  const seekForward = useCallback(async () => {
+    if (!soundRef.current) return;
+    await soundRef.current.setPositionAsync(Math.min(positionMs + 15000, durationMs));
+  }, [positionMs, durationMs]);
+
+  const seekBackward = useCallback(async () => {
+    if (!soundRef.current) return;
+    await soundRef.current.setPositionAsync(Math.max(positionMs - 15000, 0));
+  }, [positionMs]);
 
   const renderVideoCard = (video: VideoItem) => (
     <TouchableOpacity
@@ -102,7 +181,7 @@ export default function DjibrilScreen() {
       {/* Thumbnail with overlay */}
       <View style={styles.thumbnailContainer}>
         <Image
-          source={{ uri: getThumbnailUrl(video.id) }}
+          source={{ uri: getThumbnailUrl(video.youtubeId) }}
           style={styles.thumbnail}
           resizeMode="cover"
         />
@@ -115,9 +194,9 @@ export default function DjibrilScreen() {
         <View style={styles.durationBadge}>
           <Text style={styles.durationText}>{video.duration}</Text>
         </View>
-        {/* Series badge */}
+        {/* French badge */}
         <View style={styles.seriesBadge}>
-          <Text style={styles.seriesBadgeText}>S{'\u00e9'}rie</Text>
+          <Text style={styles.seriesBadgeText}>Fran{'\u00e7'}ais</Text>
         </View>
       </View>
       {/* Card body */}
@@ -216,7 +295,7 @@ export default function DjibrilScreen() {
         </View>
       </ScrollView>
 
-      {/* ── Video Player Modal ── */}
+      {/* ── Audio Player Modal ── */}
       <Modal
         visible={playerVisible}
         transparent
@@ -232,47 +311,71 @@ export default function DjibrilScreen() {
               </View>
             </TouchableOpacity>
 
-            {/* Video player */}
+            {/* Thumbnail as visual */}
             <View style={[styles.playerContainer, { height: videoHeight }]}>
               {currentVideo && (
-                Platform.OS === 'web' ? (
-                  <iframe
-                    src={getEmbedUrl(currentVideo.id)}
-                    style={{ width: '100%', height: '100%', border: 'none' } as any}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    onLoad={() => setLoading(false)}
-                  />
-                ) : (
-                  <WebView
-                    source={{ uri: getEmbedUrl(currentVideo.id) }}
-                    style={{ width: '100%', height: '100%' }}
-                    javaScriptEnabled
-                    domStorageEnabled
-                    allowsInlineMediaPlayback
-                    mediaPlaybackRequiresUserAction={false}
-                    allowsFullscreenVideo
-                    onLoadStart={() => setLoading(true)}
-                    onLoadEnd={() => setLoading(false)}
-                  />
-                )
+                <Image
+                  source={{ uri: getThumbnailUrl(currentVideo.youtubeId) }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                />
               )}
-              {loading && (
+              <View style={styles.thumbnailOverlay} />
+              {audioLoading && (
                 <View style={styles.loadingOverlay}>
-                  <ActivityIndicator size="large" color="#1565C0" />
+                  <ActivityIndicator size="large" color="#fff" />
+                  <Text style={styles.loadingText}>Chargement audio fran{'\u00e7'}ais...</Text>
                 </View>
               )}
             </View>
 
-            {/* Video info below player */}
+            {/* Audio controls + info */}
             {currentVideo && (
               <View style={styles.playerInfo}>
                 <View style={styles.playerPartBadge}>
-                  <Text style={styles.playerPartText}>Partie {currentVideo.part}</Text>
+                  <Text style={styles.playerPartText}>Partie {currentVideo.part} — Audio fran{'\u00e7'}ais</Text>
                 </View>
                 <Text style={[styles.playerTitle, { color: darkMode ? '#fff' : '#1a1a2e' }]}>
-                  {currentVideo.title} — Partie {currentVideo.part}
+                  {currentVideo.title}
                 </Text>
+
+                {/* Progress bar */}
+                <View style={styles.progressRow}>
+                  <Text style={[styles.timeText, { color: colors.textSecondary }]}>
+                    {formatTime(positionMs)}
+                  </Text>
+                  <View style={styles.progressBarBg}>
+                    <View
+                      style={[
+                        styles.progressBarFill,
+                        { width: durationMs > 0 ? `${(positionMs / durationMs) * 100}%` : '0%' },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.timeText, { color: colors.textSecondary }]}>
+                    {durationMs > 0 ? formatTime(durationMs) : '--:--'}
+                  </Text>
+                </View>
+
+                {/* Playback controls */}
+                <View style={styles.controlsRow}>
+                  <TouchableOpacity onPress={seekBackward} style={styles.controlBtn}>
+                    <Ionicons name="play-back" size={28} color={darkMode ? '#fff' : '#1a1a2e'} />
+                    <Text style={[styles.seekLabel, { color: colors.textSecondary }]}>15s</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={togglePlayPause} style={styles.playPauseBtn}>
+                    <Ionicons
+                      name={isPlaying ? 'pause' : 'play'}
+                      size={36}
+                      color="#fff"
+                      style={!isPlaying ? { marginLeft: 3 } : undefined}
+                    />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={seekForward} style={styles.controlBtn}>
+                    <Ionicons name="play-forward" size={28} color={darkMode ? '#fff' : '#1a1a2e'} />
+                    <Text style={[styles.seekLabel, { color: colors.textSecondary }]}>15s</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
           </View>
@@ -558,5 +661,57 @@ const styles = StyleSheet.create({
   playerTitle: {
     fontSize: 17,
     fontWeight: '700',
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 13,
+    marginTop: 10,
+  },
+  progressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 16,
+  },
+  timeText: {
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    minWidth: 40,
+    textAlign: 'center',
+  },
+  progressBarBg: {
+    flex: 1,
+    height: 4,
+    backgroundColor: 'rgba(128,128,128,0.3)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: '#1565C0',
+    borderRadius: 2,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 32,
+    marginTop: 16,
+    paddingBottom: 4,
+  },
+  controlBtn: {
+    alignItems: 'center',
+  },
+  seekLabel: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  playPauseBtn: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#1565C0',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

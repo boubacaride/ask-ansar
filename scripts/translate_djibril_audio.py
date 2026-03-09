@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Djibril Video Series — English-to-French Audio Translation Pipeline
+Djibril Video Series - English-to-French Audio Translation Pipeline
 
-Downloads 3 YouTube videos, transcribes with Whisper, translates EN→FR
-with Claude, generates French TTS with ElevenLabs, and merges into
-final French-dubbed .mp4 files.
+Downloads 3 YouTube videos, gets transcripts (YouTube captions or Whisper),
+translates EN->FR with OpenAI GPT-4o-mini, generates French TTS with
+Microsoft Edge TTS (free), and merges into final French-dubbed .mp4 files.
 
 Environment variables required:
-  ANTHROPIC_API_KEY   — Claude API key
-  ELEVENLABS_API_KEY  — ElevenLabs API key
-  ELEVENLABS_VOICE_ID — French male voice ID (e.g. "pNInz6obpgDQGcFmaJgB")
+  EXPO_PUBLIC_OPENAI_API_KEY - OpenAI API key
 
 Usage:
   pip install -r requirements.txt
@@ -21,13 +19,9 @@ import sys
 import json
 import subprocess
 import time
+import re
+import asyncio
 from pathlib import Path
-
-try:
-    import anthropic
-except ImportError:
-    print("Missing anthropic package. Run: pip install anthropic")
-    sys.exit(1)
 
 try:
     import requests
@@ -35,11 +29,18 @@ except ImportError:
     print("Missing requests package. Run: pip install requests")
     sys.exit(1)
 
-# ─── Configuration ─────────────────────────────────────────────────
+try:
+    import edge_tts
+except ImportError:
+    print("Missing edge-tts package. Run: pip install edge-tts")
+    sys.exit(1)
 
-ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
-ELEVENLABS_API_KEY = os.environ.get("ELEVENLABS_API_KEY", "")
-ELEVENLABS_VOICE_ID = os.environ.get("ELEVENLABS_VOICE_ID", "pNInz6obpgDQGcFmaJgB")
+# --- Configuration ---
+
+OPENAI_API_KEY = os.environ.get("EXPO_PUBLIC_OPENAI_API_KEY", "")
+
+# Edge TTS voice - French male, multilingual (natural sounding)
+EDGE_TTS_VOICE = "fr-FR-RemyMultilingualNeural"
 
 VIDEOS = [
     {"id": "2mICw81RlWI", "url": "https://www.youtube.com/watch?v=2mICw81RlWI", "name": "djibril_partie_1"},
@@ -50,7 +51,9 @@ VIDEOS = [
 OUTPUT_DIR = Path(__file__).parent / "output"
 TEMP_DIR = Path(__file__).parent / "temp"
 
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+WHISPER_MODEL = "base"
+OPENAI_MODEL = "gpt-4o-mini"
+
 TRANSLATION_SYSTEM_PROMPT = (
     "You are a professional Islamic content translator. Translate the following "
     "English text to French. Preserve Islamic terms (Allah, Jibril, Rasul, etc.) "
@@ -59,33 +62,29 @@ TRANSLATION_SYSTEM_PROMPT = (
 )
 
 
-# ─── Helpers ───────────────────────────────────────────────────────
+# --- Helpers ---
 
-def run_cmd(cmd: list[str], desc: str = "") -> subprocess.CompletedProcess:
-    """Run a shell command and return the result."""
+def run_cmd(cmd, desc=""):
     if desc:
         print(f"   {desc}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"   ERROR: {result.stderr[:500]}")
-        raise RuntimeError(f"Command failed: {' '.join(cmd[:4])}...")
+        raise RuntimeError(f"Command failed: {' '.join(str(c) for c in cmd[:4])}...")
     return result
 
 
-def ensure_tool(name: str):
-    """Check that a CLI tool is available."""
-    result = subprocess.run(["which" if os.name != "nt" else "where", name],
-                            capture_output=True, text=True)
+def ensure_tool(name):
+    cmd = "where" if os.name == "nt" else "which"
+    result = subprocess.run([cmd, name], capture_output=True, text=True)
     if result.returncode != 0:
         print(f"   Missing required tool: {name}")
-        print(f"   Install it before running this script.")
         sys.exit(1)
 
 
-# ─── Step 1: Download video + extract audio ────────────────────────
+# --- Step 1: Download video + extract audio ---
 
-def step1_download(video: dict, work_dir: Path) -> tuple[Path, Path]:
-    """Download video with yt-dlp and extract 16kHz mono WAV."""
+def step1_download(video, work_dir):
     print(f"\n{'='*60}")
     print(f"  Processing: {video['name']}")
     print(f"{'='*60}")
@@ -93,8 +92,7 @@ def step1_download(video: dict, work_dir: Path) -> tuple[Path, Path]:
     video_path = work_dir / f"{video['name']}_original.mp4"
     audio_path = work_dir / f"{video['name']}_audio.wav"
 
-    # Download video
-    print(f"\n\U0001F4E5 Step 1/7 — Downloading video...")
+    print(f"\n>> Step 1/7 - Downloading video...")
     if not video_path.exists():
         run_cmd([
             "yt-dlp",
@@ -103,95 +101,188 @@ def step1_download(video: dict, work_dir: Path) -> tuple[Path, Path]:
             "-o", str(video_path),
             video["url"],
         ], "Downloading with yt-dlp...")
-        print(f"   \u2705 Video downloaded: {video_path.name}")
+        print(f"   OK - Video downloaded: {video_path.name}")
     else:
-        print(f"   \u2705 Video already exists, skipping download")
+        print(f"   OK - Video already exists, skipping download")
 
-    # Extract audio as 16kHz mono WAV
     if not audio_path.exists():
         run_cmd([
             "ffmpeg", "-y", "-i", str(video_path),
             "-ar", "16000", "-ac", "1", "-f", "wav",
             str(audio_path),
         ], "Extracting 16kHz mono audio...")
-        print(f"   \u2705 Audio extracted: {audio_path.name}")
+        print(f"   OK - Audio extracted: {audio_path.name}")
     else:
-        print(f"   \u2705 Audio already exists, skipping extraction")
+        print(f"   OK - Audio already exists, skipping extraction")
 
     return video_path, audio_path
 
 
-# ─── Step 2: Transcribe with Whisper ───────────────────────────────
+# --- Step 2: Transcribe (YouTube captions first, Whisper fallback) ---
 
-def step2_transcribe(audio_path: Path, work_dir: Path, video_name: str) -> list[dict]:
-    """Transcribe audio using OpenAI Whisper large model."""
-    print(f"\n\U0001F4DD Step 2/7 — Transcribing with Whisper large...")
+def parse_timestamp(ts):
+    parts = ts.split(':')
+    h, m = int(parts[0]), int(parts[1])
+    s = float(parts[2])
+    return h * 3600 + m * 60 + s
+
+
+def parse_vtt(vtt_path):
+    with open(vtt_path, encoding="utf-8") as f:
+        content = f.read()
+
+    segments = []
+    seen_texts = set()
+
+    # YouTube VTT has extra attrs after timestamps: "00:00:08.310 --> 00:00:08.320 align:start position:0%"
+    pattern = r'(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})[^\n]*\n(.*?)(?=\n\n|\Z)'
+    matches = re.findall(pattern, content, re.DOTALL)
+
+    for start_str, end_str, text in matches:
+        # Remove <c> word-timing tags and other HTML-like tags
+        text = re.sub(r'<[^>]+>', '', text).strip()
+        # Remove [Music] and other bracketed annotations
+        text = re.sub(r'\[.*?\]', '', text).strip()
+        if not text or text in seen_texts:
+            continue
+        lines = text.split('\n')
+        unique_lines = []
+        for line in lines:
+            line = line.strip()
+            if line and line not in unique_lines:
+                unique_lines.append(line)
+        text = ' '.join(unique_lines)
+        if not text:
+            continue
+
+        seen_texts.add(text)
+        start = parse_timestamp(start_str)
+        end = parse_timestamp(end_str)
+        segments.append({"start": round(start, 2), "end": round(end, 2), "text": text})
+
+    return merge_short_segments(segments)
+
+
+def merge_short_segments(segments, min_duration=3.0):
+    if not segments:
+        return segments
+    merged = []
+    current = segments[0].copy()
+    for seg in segments[1:]:
+        if current['end'] - current['start'] < min_duration:
+            current['end'] = seg['end']
+            current['text'] += ' ' + seg['text']
+        else:
+            merged.append(current)
+            current = seg.copy()
+    merged.append(current)
+    return merged
+
+
+def step2_try_youtube_captions(video, work_dir, video_name):
+    json_sub = work_dir / f"{video_name}_subs.json"
+    if json_sub.exists():
+        print(f"   OK - YouTube captions already extracted, loading...")
+        with open(json_sub) as f:
+            return json.load(f)
+
+    print(f"   Trying YouTube auto-captions first (much faster than Whisper)...")
+    try:
+        run_cmd([
+            "yt-dlp",
+            "--write-auto-sub",
+            "--sub-lang", "en",
+            "--sub-format", "vtt",
+            "--skip-download",
+            "-o", str(work_dir / f"{video_name}_subs"),
+            video["url"],
+        ], "Fetching auto-generated captions...")
+
+        vtt_files = list(work_dir.glob(f"{video_name}_subs*.vtt"))
+        if not vtt_files:
+            print("   No VTT file found, falling back to Whisper...")
+            return None
+
+        segments = parse_vtt(vtt_files[0])
+        if segments:
+            with open(json_sub, "w") as f:
+                json.dump(segments, f, indent=2, ensure_ascii=False)
+            print(f"   OK - Got {len(segments)} segments from YouTube captions")
+            return segments
+    except Exception as e:
+        print(f"   YouTube captions not available: {e}")
+    return None
+
+
+def step2_transcribe(audio_path, work_dir, video):
+    print(f"\n>> Step 2/7 - Getting transcript...")
+    video_name = video["name"]
 
     transcript_path = work_dir / f"{video_name}_transcript.json"
-
     if transcript_path.exists():
-        print(f"   \u2705 Transcript already exists, loading...")
+        print(f"   OK - Transcript already exists, loading...")
         with open(transcript_path) as f:
             return json.load(f)
 
-    # Run whisper CLI
-    run_cmd([
-        "whisper",
-        str(audio_path),
-        "--model", "large",
-        "--language", "en",
-        "--output_format", "json",
-        "--output_dir", str(work_dir),
-    ], "Running Whisper large model (this may take a while)...")
+    segments = step2_try_youtube_captions(video, work_dir, video_name)
 
-    # Whisper outputs {filename}.json
-    whisper_output = work_dir / f"{audio_path.stem}.json"
-    if not whisper_output.exists():
-        raise FileNotFoundError(f"Whisper output not found: {whisper_output}")
+    if not segments:
+        print(f"   Falling back to Whisper {WHISPER_MODEL} model...")
+        run_cmd([
+            "whisper", str(audio_path),
+            "--model", WHISPER_MODEL,
+            "--language", "en",
+            "--output_format", "json",
+            "--output_dir", str(work_dir),
+        ], f"Running Whisper {WHISPER_MODEL} (this may take a while)...")
 
-    with open(whisper_output) as f:
-        whisper_data = json.load(f)
+        whisper_output = work_dir / f"{audio_path.stem}.json"
+        if not whisper_output.exists():
+            raise FileNotFoundError(f"Whisper output not found: {whisper_output}")
 
-    # Extract segments
-    segments = []
-    for seg in whisper_data.get("segments", []):
-        segments.append({
-            "start": round(seg["start"], 2),
-            "end": round(seg["end"], 2),
-            "text": seg["text"].strip(),
-        })
+        with open(whisper_output) as f:
+            whisper_data = json.load(f)
 
-    # Save our clean transcript
+        segments = []
+        for seg in whisper_data.get("segments", []):
+            segments.append({
+                "start": round(seg["start"], 2),
+                "end": round(seg["end"], 2),
+                "text": seg["text"].strip(),
+            })
+
     with open(transcript_path, "w") as f:
         json.dump(segments, f, indent=2, ensure_ascii=False)
 
-    print(f"   \u2705 Transcribed {len(segments)} segments")
+    print(f"   OK - Transcribed {len(segments)} segments")
     return segments
 
 
-# ─── Step 3: Translate with Claude ─────────────────────────────────
+# --- Step 3: Translate with OpenAI GPT-4o-mini ---
 
-def step3_translate(segments: list[dict], work_dir: Path, video_name: str) -> list[dict]:
-    """Translate each segment EN→FR using Claude API."""
-    print(f"\n\U0001F310 Step 3/7 — Translating with Claude ({CLAUDE_MODEL})...")
+def step3_translate(segments, work_dir, video_name):
+    print(f"\n>> Step 3/7 - Translating EN->FR with OpenAI ({OPENAI_MODEL})...")
 
     translated_path = work_dir / f"{video_name}_translated.json"
 
     if translated_path.exists():
-        print(f"   \u2705 Translation already exists, loading...")
+        print(f"   OK - Translation already exists, loading...")
         with open(translated_path) as f:
             return json.load(f)
 
-    if not ANTHROPIC_API_KEY:
-        print("   \u274c ANTHROPIC_API_KEY not set! Skipping translation.")
+    if not OPENAI_API_KEY:
+        print("   ERROR - OPENAI_API_KEY not set! Skipping translation.")
         return [{"start": s["start"], "end": s["end"], "text": s["text"],
                  "text_fr": s["text"]} for s in segments]
 
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
     translated = []
     total = len(segments)
 
-    # Process in batches of 10 for efficiency
     batch_size = 10
     for batch_start in range(0, total, batch_size):
         batch = segments[batch_start:batch_start + batch_size]
@@ -200,21 +291,28 @@ def step3_translate(segments: list[dict], work_dir: Path, video_name: str) -> li
         )
 
         try:
-            response = client.messages.create(
-                model=CLAUDE_MODEL,
-                max_tokens=4096,
-                system=TRANSLATION_SYSTEM_PROMPT,
-                messages=[{
-                    "role": "user",
-                    "content": (
+            payload = {
+                "model": OPENAI_MODEL,
+                "messages": [
+                    {"role": "system", "content": TRANSLATION_SYSTEM_PROMPT},
+                    {"role": "user", "content": (
                         f"Translate each numbered segment below from English to French. "
                         f"Return them in the same numbered format:\n\n{batch_texts}"
-                    ),
-                }],
-            )
+                    )},
+                ],
+                "max_tokens": 4096,
+                "temperature": 0.3,
+            }
 
-            fr_text = response.content[0].text
-            # Parse numbered responses
+            resp = requests.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=60,
+            )
+            resp.raise_for_status()
+            fr_text = resp.json()["choices"][0]["message"]["content"]
+
             fr_lines = []
             current = ""
             for line in fr_text.split("\n"):
@@ -227,7 +325,6 @@ def step3_translate(segments: list[dict], work_dir: Path, video_name: str) -> li
             if current:
                 fr_lines.append(current.strip())
 
-            # Match translations to segments
             for i, seg in enumerate(batch):
                 fr = fr_lines[i] if i < len(fr_lines) else seg["text"]
                 translated.append({
@@ -238,7 +335,7 @@ def step3_translate(segments: list[dict], work_dir: Path, video_name: str) -> li
                 })
 
         except Exception as e:
-            print(f"   \u26a0\ufe0f Translation error for batch: {e}")
+            print(f"   WARNING - Translation error for batch: {e}")
             for seg in batch:
                 translated.append({
                     "start": seg["start"],
@@ -249,171 +346,228 @@ def step3_translate(segments: list[dict], work_dir: Path, video_name: str) -> li
 
         done = min(batch_start + batch_size, total)
         print(f"   Translated {done}/{total} segments...")
-        time.sleep(0.5)  # Rate limiting
+        time.sleep(0.3)
 
-    with open(translated_path, "w") as f:
+    with open(translated_path, "w", encoding="utf-8") as f:
         json.dump(translated, f, indent=2, ensure_ascii=False)
 
-    print(f"   \u2705 Translation complete: {len(translated)} segments")
+    print(f"   OK - Translation complete: {len(translated)} segments")
     return translated
 
 
-# ─── Step 4: Generate TTS with ElevenLabs ──────────────────────────
+# --- Step 4: Generate TTS with Edge TTS (free, unlimited, concurrent) ---
 
-def step4_tts(segments: list[dict], work_dir: Path, video_name: str) -> list[Path]:
-    """Generate French TTS audio for each segment using ElevenLabs."""
-    print(f"\n\U0001F50A Step 4/7 — Generating French TTS with ElevenLabs...")
+CONCURRENT_TTS = 10  # Number of parallel TTS tasks
+
+
+async def generate_single_tts(text, out_mp3, voice=EDGE_TTS_VOICE):
+    """Generate a single TTS clip using edge-tts."""
+    communicate = edge_tts.Communicate(text, voice)
+    await communicate.save(str(out_mp3))
+
+
+async def generate_tts_batch(batch_items, tts_dir):
+    """Generate a batch of TTS clips concurrently."""
+    tasks = []
+    for i, seg, text in batch_items:
+        mp3_path = tts_dir / f"seg_{i:04d}.mp3"
+        tasks.append((i, seg, text, mp3_path))
+
+    async def _gen(idx, seg, txt, mp3p):
+        try:
+            await generate_single_tts(txt, mp3p)
+            return (idx, seg, mp3p, None)
+        except Exception as e:
+            return (idx, seg, mp3p, e)
+
+    results = await asyncio.gather(*[_gen(i, s, t, p) for i, s, t, p in tasks])
+    return results
+
+
+def step4_tts(segments, work_dir, video_name):
+    print(f"\n>> Step 4/7 - Generating French TTS with Edge TTS ({EDGE_TTS_VOICE}) [{CONCURRENT_TTS}x parallel]...")
 
     tts_dir = work_dir / f"{video_name}_tts"
     tts_dir.mkdir(exist_ok=True)
 
-    if not ELEVENLABS_API_KEY:
-        print("   \u274c ELEVENLABS_API_KEY not set! Skipping TTS.")
-        return []
-
     audio_files = []
     total = len(segments)
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{ELEVENLABS_VOICE_ID}"
-    headers = {
-        "xi-api-key": ELEVENLABS_API_KEY,
-        "Content-Type": "application/json",
-    }
+    errors = 0
+    skipped = 0
 
+    # Collect work items (segments that need TTS)
+    pending = []
     for i, seg in enumerate(segments):
         out_path = tts_dir / f"seg_{i:04d}.wav"
         audio_files.append(out_path)
 
-        if out_path.exists():
+        if out_path.exists() and out_path.stat().st_size > 1000:
+            skipped += 1
             continue
 
-        payload = {
-            "text": seg["text_fr"],
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-                "stability": 0.65,
-                "similarity_boost": 0.75,
-                "style": 0.3,
-            },
-        }
+        if out_path.exists():
+            out_path.unlink()
 
-        try:
-            resp = requests.post(url, json=payload, headers=headers, timeout=30)
-            resp.raise_for_status()
-
-            # ElevenLabs returns MP3 by default, convert to WAV
-            mp3_path = tts_dir / f"seg_{i:04d}.mp3"
-            with open(mp3_path, "wb") as f:
-                f.write(resp.content)
-
-            # Convert MP3 → WAV 16kHz mono
-            run_cmd([
-                "ffmpeg", "-y", "-i", str(mp3_path),
-                "-ar", "16000", "-ac", "1",
-                str(out_path),
-            ])
-            mp3_path.unlink()
-
-        except Exception as e:
-            print(f"   \u26a0\ufe0f TTS error for segment {i}: {e}")
-            # Create silent placeholder
+        text = seg.get("text_fr", seg.get("text", ""))
+        if not text or len(text.strip()) < 2:
             duration = seg["end"] - seg["start"]
             run_cmd([
                 "ffmpeg", "-y", "-f", "lavfi",
-                "-i", f"anullsrc=r=16000:cl=mono",
+                "-i", f"anullsrc=r=24000:cl=mono",
                 "-t", str(max(duration, 0.1)),
                 str(out_path),
             ])
+            skipped += 1
+            continue
 
-        if (i + 1) % 20 == 0 or i == total - 1:
-            print(f"   Generated {i+1}/{total} audio clips...")
-        time.sleep(0.3)  # Rate limiting
+        pending.append((i, seg, text))
 
-    print(f"   \u2705 TTS complete: {len(audio_files)} audio files")
+    if skipped > 0:
+        print(f"   Skipping {skipped} already-generated clips...")
+
+    if not pending:
+        print(f"   OK - All {total} TTS clips already exist!")
+        return audio_files
+
+    print(f"   Generating {len(pending)} TTS clips ({CONCURRENT_TTS} at a time)...")
+
+    # Process in batches of CONCURRENT_TTS
+    generated = 0
+    for batch_start in range(0, len(pending), CONCURRENT_TTS):
+        batch = pending[batch_start:batch_start + CONCURRENT_TTS]
+
+        results = asyncio.run(generate_tts_batch(batch, tts_dir))
+
+        for idx, seg, mp3_path, err in results:
+            out_path = tts_dir / f"seg_{idx:04d}.wav"
+
+            if err:
+                print(f"   WARNING - TTS error for segment {idx}: {err}")
+                errors += 1
+                duration = seg["end"] - seg["start"]
+                run_cmd([
+                    "ffmpeg", "-y", "-f", "lavfi",
+                    "-i", f"anullsrc=r=24000:cl=mono",
+                    "-t", str(max(duration, 0.1)),
+                    str(out_path),
+                ])
+                if mp3_path.exists():
+                    mp3_path.unlink()
+            else:
+                # Convert MP3 to WAV (24kHz mono)
+                run_cmd([
+                    "ffmpeg", "-y", "-i", str(mp3_path),
+                    "-ar", "24000", "-ac", "1",
+                    str(out_path),
+                ])
+                mp3_path.unlink()
+
+            generated += 1
+
+        if (generated) % 100 < CONCURRENT_TTS or batch_start + CONCURRENT_TTS >= len(pending):
+            print(f"   Generated {generated}/{len(pending)} audio clips... ({errors} errors)")
+
+    print(f"   OK - TTS complete: {len(audio_files)} total ({errors} errors)")
     return audio_files
 
 
-# ─── Step 5-6: Sync audio with FFmpeg adelay + amix ────────────────
+# --- Step 5-6: Sync audio with FFmpeg adelay + amix ---
 
-def step5_6_sync_audio(
-    segments: list[dict],
-    audio_files: list[Path],
-    work_dir: Path,
-    video_name: str,
-) -> Path:
-    """Align each TTS clip to its original timestamp using FFmpeg adelay."""
-    print(f"\n\U0001F3B5 Step 5-6/7 — Syncing audio to timestamps with FFmpeg...")
+def step5_6_sync_audio(segments, audio_files, work_dir, video_name):
+    print(f"\n>> Step 5-6/7 - Syncing audio to timestamps with FFmpeg...")
 
     french_audio = work_dir / f"{video_name}_french_audio.wav"
 
     if french_audio.exists():
-        print(f"   \u2705 French audio already exists, skipping sync")
+        print(f"   OK - French audio already exists, skipping sync")
         return french_audio
 
     if not audio_files:
-        print("   \u26a0\ufe0f No audio files to sync")
+        print("   WARNING - No audio files to sync")
         return french_audio
 
-    # Get total video duration from the last segment
     total_duration = max(s["end"] for s in segments) + 5.0
 
-    # Build complex FFmpeg filter for adelay + amix
-    inputs = []
-    filter_parts = []
-    valid_count = 0
-
+    valid_clips = []
     for i, (seg, af) in enumerate(zip(segments, audio_files)):
-        if not af.exists():
-            continue
-        inputs.extend(["-i", str(af)])
-        delay_ms = int(seg["start"] * 1000)
-        filter_parts.append(f"[{valid_count}]adelay={delay_ms}|{delay_ms}[d{valid_count}]")
-        valid_count += 1
+        if af.exists():
+            valid_clips.append((seg, af, i))
 
-    if valid_count == 0:
-        print("   \u26a0\ufe0f No valid audio clips found")
+    if not valid_clips:
+        print("   WARNING - No valid audio clips found")
         return french_audio
 
-    # Amix all delayed streams
-    mix_inputs = "".join(f"[d{i}]" for i in range(valid_count))
-    filter_parts.append(
-        f"{mix_inputs}amix=inputs={valid_count}:duration=longest:dropout_transition=2[out]"
-    )
+    chunk_size = 50
+    chunk_outputs = []
 
-    filter_complex = ";".join(filter_parts)
+    for chunk_idx in range(0, len(valid_clips), chunk_size):
+        chunk = valid_clips[chunk_idx:chunk_idx + chunk_size]
+        chunk_path = work_dir / f"{video_name}_chunk_{chunk_idx}.wav"
+        chunk_outputs.append(chunk_path)
 
-    cmd = [
-        "ffmpeg", "-y",
-        *inputs,
-        "-filter_complex", filter_complex,
-        "-map", "[out]",
-        "-ar", "44100", "-ac", "1",
-        "-t", str(total_duration),
-        str(french_audio),
-    ]
+        if chunk_path.exists():
+            continue
 
-    run_cmd(cmd, "Mixing all audio clips with adelay...")
-    print(f"   \u2705 French audio track created: {french_audio.name}")
+        inputs = []
+        filter_parts = []
+        for j, (seg, af, _) in enumerate(chunk):
+            inputs.extend(["-i", str(af)])
+            delay_ms = int(seg["start"] * 1000)
+            filter_parts.append(f"[{j}]adelay={delay_ms}|{delay_ms}[d{j}]")
+
+        count = len(chunk)
+        mix_inputs = "".join(f"[d{j}]" for j in range(count))
+        filter_parts.append(
+            f"{mix_inputs}amix=inputs={count}:duration=longest:dropout_transition=2[out]"
+        )
+
+        cmd = [
+            "ffmpeg", "-y",
+            *inputs,
+            "-filter_complex", ";".join(filter_parts),
+            "-map", "[out]",
+            "-ar", "44100", "-ac", "1",
+            "-t", str(total_duration),
+            str(chunk_path),
+        ]
+        run_cmd(cmd, f"Mixing chunk {chunk_idx // chunk_size + 1}...")
+
+    if len(chunk_outputs) == 1:
+        import shutil
+        shutil.move(str(chunk_outputs[0]), str(french_audio))
+    else:
+        inputs = []
+        for cp in chunk_outputs:
+            inputs.extend(["-i", str(cp)])
+        count = len(chunk_outputs)
+        mix_inputs = "".join(f"[{i}]" for i in range(count))
+        run_cmd([
+            "ffmpeg", "-y",
+            *inputs,
+            "-filter_complex",
+            f"{mix_inputs}amix=inputs={count}:duration=longest[out]",
+            "-map", "[out]",
+            "-ar", "44100", "-ac", "1",
+            str(french_audio),
+        ], "Merging audio chunks...")
+
+    print(f"   OK - French audio track created: {french_audio.name}")
     return french_audio
 
 
-# ─── Step 7: Merge video + French audio ────────────────────────────
+# --- Step 7: Merge video + French audio ---
 
-def step7_merge(
-    video_path: Path,
-    french_audio: Path,
-    video_name: str,
-) -> Path:
-    """Merge original video with French audio into final output."""
-    print(f"\n\U0001F3AC Step 7/7 — Merging video + French audio...")
+def step7_merge(video_path, french_audio, video_name):
+    print(f"\n>> Step 7/7 - Merging video + French audio...")
 
     output_path = OUTPUT_DIR / f"{video_name}_french.mp4"
 
     if output_path.exists():
-        print(f"   \u2705 Output already exists: {output_path.name}")
+        print(f"   OK - Output already exists: {output_path.name}")
         return output_path
 
     if not french_audio.exists():
-        print("   \u26a0\ufe0f French audio not found, copying original video")
+        print("   WARNING - French audio not found, copying original video")
         import shutil
         shutil.copy2(video_path, output_path)
         return output_path
@@ -429,33 +583,21 @@ def step7_merge(
         str(output_path),
     ], "Merging with FFmpeg...")
 
-    print(f"   \u2705 Final output: {output_path.name}")
+    print(f"   OK - Final output: {output_path.name}")
     return output_path
 
 
-# ─── Main pipeline ─────────────────────────────────────────────────
+# --- Main pipeline ---
 
-def process_video(video: dict):
-    """Run the full pipeline for a single video."""
+def process_video(video):
     work_dir = TEMP_DIR / video["name"]
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    # Step 1: Download
     video_path, audio_path = step1_download(video, work_dir)
-
-    # Step 2: Transcribe
-    segments = step2_transcribe(audio_path, work_dir, video["name"])
-
-    # Step 3: Translate
+    segments = step2_transcribe(audio_path, work_dir, video)
     translated = step3_translate(segments, work_dir, video["name"])
-
-    # Step 4: TTS
     audio_files = step4_tts(translated, work_dir, video["name"])
-
-    # Step 5-6: Sync
     french_audio = step5_6_sync_audio(translated, audio_files, work_dir, video["name"])
-
-    # Step 7: Merge
     output = step7_merge(video_path, french_audio, video["name"])
 
     return output
@@ -463,27 +605,21 @@ def process_video(video: dict):
 
 def main():
     print("\n" + "=" * 60)
-    print("  \U0001F3AC Djibril Video Translation Pipeline")
-    print("  EN \u2192 FR | Whisper + Claude + ElevenLabs + FFmpeg")
+    print("  Djibril Video Translation Pipeline")
+    print("  EN -> FR | YouTube Captions/Whisper + GPT-4o-mini + Edge TTS + FFmpeg")
     print("=" * 60)
 
-    # Check required tools
-    print("\n\U0001F50D Checking required tools...")
-    for tool in ["yt-dlp", "ffmpeg", "whisper"]:
+    print("\nChecking required tools...")
+    for tool in ["yt-dlp", "ffmpeg"]:
         ensure_tool(tool)
-        print(f"   \u2705 {tool} found")
+        print(f"   OK - {tool} found")
 
-    # Check API keys
-    if not ANTHROPIC_API_KEY:
-        print("\n\u26a0\ufe0f  ANTHROPIC_API_KEY not set — translations will be skipped")
-    if not ELEVENLABS_API_KEY:
-        print("\u26a0\ufe0f  ELEVENLABS_API_KEY not set — TTS will be skipped")
+    if not OPENAI_API_KEY:
+        print("\nWARNING - OPENAI_API_KEY not set - translations will be skipped")
 
-    # Create output directory
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Process each video
     results = []
     for i, video in enumerate(VIDEOS):
         print(f"\n{'#' * 60}")
@@ -493,19 +629,18 @@ def main():
         try:
             output = process_video(video)
             results.append(output)
-            print(f"\n\u2705 {video['name']} complete!")
+            print(f"\n   DONE - {video['name']} complete!")
         except Exception as e:
-            print(f"\n\u274c Error processing {video['name']}: {e}")
+            print(f"\n   FAIL - Error processing {video['name']}: {e}")
             import traceback
             traceback.print_exc()
 
-    # Summary
     print(f"\n{'=' * 60}")
-    print(f"  \u2705 PIPELINE COMPLETE")
+    print(f"  PIPELINE COMPLETE")
     print(f"{'=' * 60}")
     for r in results:
         size_mb = r.stat().st_size / (1024 * 1024) if r.exists() else 0
-        print(f"   \U0001F4C1 {r.name} ({size_mb:.1f} MB)")
+        print(f"   {r.name} ({size_mb:.1f} MB)")
     print(f"\n   Output directory: {OUTPUT_DIR.resolve()}")
 
 
