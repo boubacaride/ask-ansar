@@ -420,7 +420,7 @@ export default function SunnahScreen() {
                 {HADITH_Catégories.map((category) => (
                   <TouchableOpacity
                     key={category.id}
-                    style={[styles.categoryCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+                    style={[styles.categoryCard, { backgroundColor: colors.card, borderColor: '#C9A227' }]}
                     onPress={() => handleCategoryPress(category)}
                     activeOpacity={0.7}
                   >
