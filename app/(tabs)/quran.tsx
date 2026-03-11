@@ -217,15 +217,15 @@ export default function QuranScreen() {
   }, []);
 
   const colors = {
-    background: darkMode ? '#0a0a0a' : '#f8f9fa',
-    card: darkMode ? '#1e1e2d' : '#ffffff',
-    cardBorder: darkMode ? '#2d2d44' : '#e0e0e0',
-    text: darkMode ? '#ffffff' : '#1a1a2e',
-    textSecondary: darkMode ? '#a0a0b0' : '#6c757d',
-    primary: '#00897b',
-    accent: '#c9a227',
-    inputBg: darkMode ? '#252538' : '#f5f5f5',
-    inputBorder: darkMode ? '#3d3d5c' : '#ced4da',
+    background: darkMode ? '#0F1419' : '#F5F7FA',
+    card: darkMode ? '#1B2330' : '#FFFFFF',
+    cardBorder: darkMode ? '#2A3545' : '#E1E5EB',
+    text: darkMode ? '#F0F2F5' : '#1A2233',
+    textSecondary: darkMode ? '#8B99A8' : '#6B7A8D',
+    primary: '#1565C0',
+    accent: '#C9A227',
+    inputBg: darkMode ? '#1E2A38' : '#F0F2F5',
+    inputBorder: darkMode ? '#354555' : '#D0D7E0',
   };
 
   const filteredSurahs = SURAHS.filter(
@@ -243,12 +243,12 @@ export default function QuranScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={darkMode ? ['#0a0a0a', '#1a1a2e', '#0d2137'] : ['#f8f9fa', '#e3f2fd', '#bbdefb']}
+        colors={darkMode ? ['#0F1419', '#151E2B', '#0F1926'] : ['#F5F7FA', '#EEF2F8', '#E8EDF5']}
         style={styles.gradient}
       >
         <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
           <View style={styles.headerContent}>
-            <View style={[styles.headerIcon, { backgroundColor: 'rgba(0, 137, 123, 0.1)', width: isSmallScreen ? 42 : 50, height: isSmallScreen ? 42 : 50, borderRadius: isSmallScreen ? 21 : 25 }]}>
+            <View style={[styles.headerIcon, { backgroundColor: darkMode ? 'rgba(21, 101, 192, 0.15)' : 'rgba(21, 101, 192, 0.08)', width: isSmallScreen ? 42 : 50, height: isSmallScreen ? 42 : 50, borderRadius: isSmallScreen ? 21 : 25 }]}>
               <Ionicons name="book" size={isSmallScreen ? 24 : 28} color={colors.primary} />
             </View>
             <View>
@@ -281,7 +281,7 @@ export default function QuranScreen() {
           style={styles.readerBannerWrapper}
         >
           <LinearGradient
-            colors={darkMode ? ['#00695c', '#004d40'] : ['#00897b', '#00695c']}
+            colors={darkMode ? ['#0D47A1', '#0A3A7E'] : ['#1565C0', '#0D47A1']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.readerBanner}
@@ -333,7 +333,7 @@ export default function QuranScreen() {
                   onPress={() => handleSurahPress({ number: lastRead.surahNumber!, name: lastRead.surahName! })}
                   style={[styles.continueReadingCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
                 >
-                  <View style={[styles.continueReadingIcon, { backgroundColor: 'rgba(0, 137, 123, 0.15)' }]}>
+                  <View style={[styles.continueReadingIcon, { backgroundColor: 'rgba(21, 101, 192, 0.15)' }]}>
                     <Ionicons name="reader" size={20} color={colors.primary} />
                   </View>
                   <View style={styles.continueReadingInfo}>
@@ -687,7 +687,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...Platform.select({
       ios: {
-        shadowColor: '#00897b',
+        shadowColor: '#1565C0',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,

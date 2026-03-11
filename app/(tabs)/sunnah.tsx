@@ -222,10 +222,9 @@ export default function SunnahScreen() {
                 darkMode={darkMode}
               />
 
-              {/* ═══ L'histoire de Djibril (L'Ange Gabriel) — Animated Button ═══ */}
-              <View style={styles.hadithBtnContainer}>
-                <Animated.View style={[styles.hadithGlowLayer, { opacity: hadithGlow }]} />
-                <Animated.View style={{ transform: [{ scale: djibrilScale }] }}>
+              {/* ═══ Grid: Djibril, Prophètes, Hadiths ═══ */}
+              <View style={styles.gridButtonsRow}>
+                <Animated.View style={[styles.gridButtonWrapper, { transform: [{ scale: djibrilScale }] }]}>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={() => router.push('/(tabs)/sunnah/djibril')}
@@ -245,48 +244,20 @@ export default function SunnahScreen() {
                         friction: 8,
                       }).start()
                     }
+                    style={[styles.gridButton, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}
                   >
-                    <View style={styles.hadithBtnOuter}>
-                      <Animated.View
-                        style={[
-                          styles.hadithRotatingBg,
-                          { transform: [{ rotate: hadithBorderRotation }] },
-                        ]}
-                      >
-                        <LinearGradient
-                          colors={['#1565C0', '#42A5F5', '#C9A227', '#D4AF37', '#42A5F5', '#1565C0']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ width: '100%', height: '100%' }}
-                        />
-                      </Animated.View>
-                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}>
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 10, left: 60 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 16, right: 70 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, bottom: 16, right: 44 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, top: 24, left: 100 }]} />
-                        <FontAwesome5
-                          name="star"
-                          size={15}
-                          color="#c9a227"
-                          style={styles.hadithBtnIcon}
-                        />
-                        <Text style={styles.hadithBtnText}>
-                          L'histoire de Djibril (L'Ange Gabriel)
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color="rgba(201, 162, 39, 0.6)" />
-                      </View>
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 12 }]} />
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 22, right: 10 }]} />
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 14, left: 20 }]} />
+                    <View style={styles.gridBtnIconCircle}>
+                      <FontAwesome5 name="star" size={22} color="#c9a227" />
                     </View>
+                    <Text style={styles.gridBtnTitle}>Djibril</Text>
+                    <Text style={styles.gridBtnSubtitle}>L'Ange Gabriel</Text>
                   </TouchableOpacity>
                 </Animated.View>
-              </View>
 
-              {/* ═══ L'histoire des prophètes — Animated Button ═══ */}
-              <View style={styles.hadithBtnContainer}>
-                <Animated.View style={[styles.hadithGlowLayer, { opacity: hadithGlow }]} />
-                <Animated.View style={{ transform: [{ scale: prophetsScale }] }}>
+                <Animated.View style={[styles.gridButtonWrapper, { transform: [{ scale: prophetsScale }] }]}>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={() => router.push('/(tabs)/sunnah/prophets-video')}
@@ -306,50 +277,20 @@ export default function SunnahScreen() {
                         friction: 8,
                       }).start()
                     }
+                    style={[styles.gridButton, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}
                   >
-                    <View style={styles.hadithBtnOuter}>
-                      <Animated.View
-                        style={[
-                          styles.hadithRotatingBg,
-                          { transform: [{ rotate: hadithBorderRotation }] },
-                        ]}
-                      >
-                        <LinearGradient
-                          colors={['#1565C0', '#42A5F5', '#C9A227', '#D4AF37', '#42A5F5', '#1565C0']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ width: '100%', height: '100%' }}
-                        />
-                      </Animated.View>
-                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}>
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 10, left: 60 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 16, right: 70 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, bottom: 16, right: 44 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, top: 24, left: 100 }]} />
-                        <FontAwesome5
-                          name="film"
-                          size={15}
-                          color="#c9a227"
-                          style={styles.hadithBtnIcon}
-                        />
-                        <Text style={styles.hadithBtnText}>
-                          L'histoire des prophètes
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color="rgba(201, 162, 39, 0.6)" />
-                      </View>
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 10, left: 16 }]} />
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, top: 26, right: 8 }]} />
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, bottom: 10, right: 20 }]} />
+                    <View style={styles.gridBtnIconCircle}>
+                      <FontAwesome5 name="film" size={22} color="#c9a227" />
                     </View>
+                    <Text style={styles.gridBtnTitle}>Prophètes</Text>
+                    <Text style={styles.gridBtnSubtitle}>Leurs histoires</Text>
                   </TouchableOpacity>
                 </Animated.View>
-              </View>
 
-              {/* ═══ Hadiths du Messager d'Allah (ﷺ) — Animated Button ═══ */}
-              <View style={styles.hadithBtnContainer}>
-                {/* Pulsing glow behind the button */}
-                <Animated.View style={[styles.hadithGlowLayer, { opacity: hadithGlow }]} />
-
-                <Animated.View style={{ transform: [{ scale: hadithScale }] }}>
+                <Animated.View style={[styles.gridButtonWrapper, { transform: [{ scale: hadithScale }] }]}>
                   <TouchableOpacity
                     activeOpacity={0.85}
                     onPress={() => router.push('/(tabs)/sunnah/hadith-collections')}
@@ -369,45 +310,16 @@ export default function SunnahScreen() {
                         friction: 8,
                       }).start()
                     }
+                    style={[styles.gridButton, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}
                   >
-                    <View style={styles.hadithBtnOuter}>
-                      {/* Rotating gradient — teal/gold animated border */}
-                      <Animated.View
-                        style={[
-                          styles.hadithRotatingBg,
-                          { transform: [{ rotate: hadithBorderRotation }] },
-                        ]}
-                      >
-                        <LinearGradient
-                          colors={['#1565C0', '#42A5F5', '#C9A227', '#D4AF37', '#42A5F5', '#1565C0']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={{ width: '100%', height: '100%' }}
-                        />
-                      </Animated.View>
-
-                      {/* Rich dark inner content */}
-                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}>
-                        {/* Subtle gold star particles */}
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 10, left: 60 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 16, right: 70 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, bottom: 16, right: 44 }]} />
-                        <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, top: 24, left: 100 }]} />
-
-                        <FontAwesome5
-                          name="book-open"
-                          size={15}
-                          color="#c9a227"
-                          style={styles.hadithBtnIcon}
-                        />
-                        <Text style={styles.hadithBtnText}>
-                          Hadiths du Messager d'Allah (ﷺ)
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color="rgba(201, 162, 39, 0.6)" />
-                      </View>
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, top: 12, right: 14 }]} />
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 28, left: 8 }]} />
+                    <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, bottom: 8, left: 28 }]} />
+                    <View style={styles.gridBtnIconCircle}>
+                      <FontAwesome5 name="book-open" size={22} color="#c9a227" />
                     </View>
+                    <Text style={styles.gridBtnTitle}>Hadiths</Text>
+                    <Text style={styles.gridBtnSubtitle}>du Messager &#xFDFA;</Text>
                   </TouchableOpacity>
                 </Animated.View>
               </View>
@@ -623,6 +535,49 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 3,
   },
+  gridButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginVertical: 16,
+  },
+  gridButtonWrapper: {
+    flex: 1,
+  },
+  gridButton: {
+    borderRadius: 16,
+    borderWidth: 2.5,
+    borderColor: '#C9A227',
+    paddingVertical: 20,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 140,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  gridBtnIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(201, 162, 39, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  gridBtnTitle: {
+    color: '#e8d5a3',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.3,
+  },
+  gridBtnSubtitle: {
+    color: 'rgba(232, 213, 163, 0.7)',
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+    marginTop: 2,
+  },
   collectionCard: {
     padding: 16,
     borderRadius: 14,
@@ -690,7 +645,7 @@ const styles = StyleSheet.create({
     minWidth: 140,
     padding: 14,
     borderRadius: 14,
-    borderWidth: 1,
+    borderWidth: 2.5,
     alignItems: 'center',
   },
   categoryIcon: {
