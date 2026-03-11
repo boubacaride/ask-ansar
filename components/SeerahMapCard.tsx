@@ -16,8 +16,8 @@ interface SeerahMapCardProps {
 
 export function SeerahMapCard({ onPress, darkMode }: SeerahMapCardProps) {
   const colors = {
-    text: darkMode ? '#ffffff' : '#1a1a2e',
-    textSecondary: darkMode ? '#a0a0b0' : '#6c757d',
+    text: darkMode ? '#F0F2F5' : '#1A2233',
+    textSecondary: darkMode ? '#8B99A8' : '#6B7A8D',
     badge: darkMode ? 'rgba(201, 162, 39, 0.2)' : 'rgba(201, 162, 39, 0.15)',
     icon: darkMode ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.2)',
   };
@@ -29,7 +29,7 @@ export function SeerahMapCard({ onPress, darkMode }: SeerahMapCardProps) {
       activeOpacity={0.9}
     >
       <LinearGradient
-        colors={['#0D5C63', '#00897b', '#00695c']}
+        colors={['#1976D2', '#1565C0', '#0D47A1']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
@@ -76,9 +76,9 @@ export function SeerahMapCard({ onPress, darkMode }: SeerahMapCardProps) {
           </View>
 
           <View style={styles.ctaButton}>
-            <FontAwesome5 name="compass" size={16} color="#0D5C63" />
+            <FontAwesome5 name="compass" size={16} color="#1565C0" />
             <Text style={styles.ctaText}>Explorer la carte</Text>
-            <FontAwesome5 name="arrow-right" size={14} color="#0D5C63" />
+            <FontAwesome5 name="arrow-right" size={14} color="#1565C0" />
           </View>
         </View>
 
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(201, 162, 39, 0.1)',
+    backgroundColor: 'rgba(201, 162, 39, 0.08)',
     bottom: -20,
     left: -20,
   },
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
   ctaText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#0D5C63',
+    color: '#1565C0',
   },
   cornerDecoration: {
     position: 'absolute',

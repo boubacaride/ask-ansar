@@ -26,15 +26,15 @@ import { HadithSearch } from '@/components/HadithSearch';
 
 
 const HADITH_Catégories = [
-  { id: 'faith', name: 'Foi (Iman)', icon: 'heart', color: '#e91e63' },
-  { id: 'prayer', name: 'Prière (Salah)', icon: 'pray', color: '#9c27b0' },
-  { id: 'fasting', name: 'Jeûne (Sawm)', icon: 'moon', color: '#673ab7' },
-  { id: 'zakat', name: 'Aumône (Zakat)', icon: 'hand-holding-heart', color: '#3f51b5' },
-  { id: 'hajj', name: 'Pèlerinage (Hajj)', icon: 'kaaba', color: '#c9a227' },
-  { id: 'manners', name: 'Bonnes manières (Adab)', icon: 'user-friends', color: '#00897b' },
-  { id: 'family', name: 'Relations familiales', icon: 'home', color: '#ff5722' },
-  { id: 'business', name: 'Éthique des affaires', icon: 'balance-scale', color: '#607d8b' },
-  { id: 'duas', name: "Dou'as et Dhikr", icon: 'praying-hands', color: '#00796b' },
+  { id: 'faith', name: 'Foi (Iman)', icon: 'heart', color: '#5C6BC0' },
+  { id: 'prayer', name: 'Prière (Salah)', icon: 'pray', color: '#7E57C2' },
+  { id: 'fasting', name: 'Jeûne (Sawm)', icon: 'moon', color: '#26A69A' },
+  { id: 'zakat', name: 'Aumône (Zakat)', icon: 'hand-holding-heart', color: '#66BB6A' },
+  { id: 'hajj', name: 'Pèlerinage (Hajj)', icon: 'kaaba', color: '#C9A227' },
+  { id: 'manners', name: 'Bonnes manières (Adab)', icon: 'user-friends', color: '#42A5F5' },
+  { id: 'family', name: 'Relations familiales', icon: 'home', color: '#EF5350' },
+  { id: 'business', name: 'Éthique des affaires', icon: 'balance-scale', color: '#78909C' },
+  { id: 'duas', name: "Dou'as et Dhikr", icon: 'praying-hands', color: '#AB47BC' },
 ];
 
 export default function SunnahScreen() {
@@ -117,15 +117,15 @@ export default function SunnahScreen() {
   });
 
   const colors = {
-    background: darkMode ? '#0a0a0a' : '#f8f9fa',
-    card: darkMode ? '#1e1e2d' : '#ffffff',
-    cardBorder: darkMode ? '#2d2d44' : '#e0e0e0',
-    text: darkMode ? '#ffffff' : '#1a1a2e',
-    textSecondary: darkMode ? '#a0a0b0' : '#6c757d',
-    primary: '#00897b',
-    accent: '#c9a227',
-    inputBg: darkMode ? '#252538' : '#f5f5f5',
-    inputBorder: darkMode ? '#3d3d5c' : '#ced4da',
+    background: darkMode ? '#0F1419' : '#F5F7FA',
+    card: darkMode ? '#1B2330' : '#FFFFFF',
+    cardBorder: darkMode ? '#2A3545' : '#E1E5EB',
+    text: darkMode ? '#F0F2F5' : '#1A2233',
+    textSecondary: darkMode ? '#8B99A8' : '#6B7A8D',
+    primary: '#1565C0',
+    accent: '#C9A227',
+    inputBg: darkMode ? '#1E2A38' : '#F0F2F5',
+    inputBorder: darkMode ? '#354555' : '#D0D7E0',
   };
 
   const handleOpenInBrowser = (url: string) => {
@@ -151,12 +151,12 @@ export default function SunnahScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <LinearGradient
-        colors={darkMode ? ['#0a0a0a', '#1a1a2e', '#0d2137'] : ['#f8f9fa', '#e8f5e9', '#c8e6c9']}
+        colors={darkMode ? ['#0F1419', '#151E2B', '#0F1926'] : ['#F5F7FA', '#EEF2F8', '#E8EDF5']}
         style={styles.gradient}
       >
         <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
           <View style={styles.headerContent}>
-            <View style={[styles.headerIcon, { backgroundColor: 'rgba(0, 137, 123, 0.1)', width: isSmallScreen ? 42 : 50, height: isSmallScreen ? 42 : 50, borderRadius: isSmallScreen ? 21 : 25 }]}>
+            <View style={[styles.headerIcon, { backgroundColor: darkMode ? 'rgba(21, 101, 192, 0.15)' : 'rgba(21, 101, 192, 0.08)', width: isSmallScreen ? 42 : 50, height: isSmallScreen ? 42 : 50, borderRadius: isSmallScreen ? 21 : 25 }]}>
               <FontAwesome5 name="book-open" size={isSmallScreen ? 20 : 24} color={colors.primary} />
             </View>
             <View>
@@ -254,13 +254,13 @@ export default function SunnahScreen() {
                         ]}
                       >
                         <LinearGradient
-                          colors={['#00897b', '#4db6ac', '#c9a227', '#daa520', '#4db6ac', '#00897b']}
+                          colors={['#1565C0', '#42A5F5', '#C9A227', '#D4AF37', '#42A5F5', '#1565C0']}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                           style={{ width: '100%', height: '100%' }}
                         />
                       </Animated.View>
-                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#101824' : '#0b2b2b' }]}>
+                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}>
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 10, left: 60 }]} />
@@ -315,13 +315,13 @@ export default function SunnahScreen() {
                         ]}
                       >
                         <LinearGradient
-                          colors={['#00897b', '#4db6ac', '#c9a227', '#daa520', '#4db6ac', '#00897b']}
+                          colors={['#1565C0', '#42A5F5', '#C9A227', '#D4AF37', '#42A5F5', '#1565C0']}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                           style={{ width: '100%', height: '100%' }}
                         />
                       </Animated.View>
-                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#101824' : '#0b2b2b' }]}>
+                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}>
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar3, bottom: 10, left: 60 }]} />
@@ -379,7 +379,7 @@ export default function SunnahScreen() {
                         ]}
                       >
                         <LinearGradient
-                          colors={['#00897b', '#4db6ac', '#c9a227', '#daa520', '#4db6ac', '#00897b']}
+                          colors={['#1565C0', '#42A5F5', '#C9A227', '#D4AF37', '#42A5F5', '#1565C0']}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                           style={{ width: '100%', height: '100%' }}
@@ -387,7 +387,7 @@ export default function SunnahScreen() {
                       </Animated.View>
 
                       {/* Rich dark inner content */}
-                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#101824' : '#0b2b2b' }]}>
+                      <View style={[styles.hadithBtnInner, { backgroundColor: darkMode ? '#0D1526' : '#0D1B2A' }]}>
                         {/* Subtle gold star particles */}
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar1, top: 8, left: 20 }]} />
                         <Animated.View style={[styles.hadithStar, { opacity: hadithStar2, top: 28, right: 24 }]} />
@@ -571,8 +571,8 @@ const styles = StyleSheet.create({
     right: 35,
     bottom: 2,
     borderRadius: 40,
-    backgroundColor: 'rgba(0, 137, 123, 0.25)',
-    shadowColor: '#00897b',
+    backgroundColor: 'rgba(21, 101, 192, 0.2)',
+    shadowColor: '#1565C0',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 18,

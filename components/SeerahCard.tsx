@@ -16,10 +16,10 @@ interface SeerahCardProps {
 
 export function SeerahCard({ onPress, darkMode }: SeerahCardProps) {
   const colors = {
-    text: darkMode ? '#ffffff' : '#1a1a2e',
-    textSecondary: darkMode ? '#a0a0b0' : '#6c757d',
+    text: darkMode ? '#F0F2F5' : '#1A2233',
+    textSecondary: darkMode ? '#8B99A8' : '#6B7A8D',
     badge: darkMode ? 'rgba(201, 162, 39, 0.2)' : 'rgba(201, 162, 39, 0.15)',
-    icon: darkMode ? 'rgba(0, 137, 123, 0.15)' : 'rgba(0, 137, 123, 0.1)',
+    icon: darkMode ? 'rgba(21, 101, 192, 0.2)' : 'rgba(21, 101, 192, 0.15)',
   };
 
   return (
@@ -29,7 +29,7 @@ export function SeerahCard({ onPress, darkMode }: SeerahCardProps) {
       activeOpacity={0.9}
     >
       <LinearGradient
-        colors={['#00897b', '#00695c', '#004d40']}
+        colors={['#1565C0', '#0D47A1', '#0A3A7E']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
@@ -84,7 +84,7 @@ export function SeerahCard({ onPress, darkMode }: SeerahCardProps) {
 
           <View style={styles.ctaButton}>
             <Text style={styles.ctaText}>Commencer la lecture</Text>
-            <FontAwesome5 name="arrow-right" size={16} color="#00897b" />
+            <FontAwesome5 name="arrow-right" size={16} color="#1565C0" />
           </View>
         </View>
 
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(201, 162, 39, 0.1)',
+    backgroundColor: 'rgba(201, 162, 39, 0.08)',
     top: '50%',
     right: '10%',
   },
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   ctaText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#00897b',
+    color: '#1565C0',
   },
   cornerDecoration: {
     position: 'absolute',
