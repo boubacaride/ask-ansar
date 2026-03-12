@@ -177,18 +177,37 @@ export function MicButton({
     }
   }, [audioState, setRecordingDuration]);
 
-  // ── Feed interim/final text to parent callbacks ────────────────────
-  useEffect(() => {
-    if (interimText) {
-      onTranscript(interimText);
-    }
-  }, [interimText, onTranscript]);
+  // ── Stable callback refs (avoid re-firing effects on parent re-render) ──
+  const onTranscriptRef = useRef(onTranscript);
+  const onFinalTranscriptRef = useRef(onFinalTranscript);
+  useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
+  useEffect(() => { onFinalTranscriptRef.current = onFinalTranscript; }, [onFinalTranscript]);
 
+  // Track the last text we sent to the parent so we don't re-send it
+  const lastSentInterimRef = useRef('');
+  const lastSentFinalRef = useRef('');
+
+  // ── Feed interim text to parent (only when the value actually changes) ──
   useEffect(() => {
-    if (finalText) {
-      onFinalTranscript(finalText);
+    if (interimText && interimText !== lastSentInterimRef.current) {
+      lastSentInterimRef.current = interimText;
+      onTranscriptRef.current(interimText);
     }
-  }, [finalText, onFinalTranscript]);
+    if (!interimText) {
+      lastSentInterimRef.current = '';
+    }
+  }, [interimText]);
+
+  // ── Feed final text to parent (only when the value actually changes) ──
+  useEffect(() => {
+    if (finalText && finalText !== lastSentFinalRef.current) {
+      lastSentFinalRef.current = finalText;
+      onFinalTranscriptRef.current(finalText);
+    }
+    if (!finalText) {
+      lastSentFinalRef.current = '';
+    }
+  }, [finalText]);
 
   // ── Haptic helper ──────────────────────────────────────────────────
   const triggerHaptic = useCallback(async () => {
