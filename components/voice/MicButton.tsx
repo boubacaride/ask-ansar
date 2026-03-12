@@ -221,17 +221,11 @@ export function MicButton({
     if (voiceInputMode === 'hold') {
       isLongPressRef.current = false;
 
-      // Start a long-press timer for opening mode sheet
-      longPressTimerRef.current = setTimeout(() => {
-        isLongPressRef.current = true;
-        // Cancel any recording that may have started
-        cancelRecording();
-        if (onLongPress) {
-          onLongPress();
-        }
-      }, 600);
-
-      // Start recording immediately for hold-to-talk
+      // Start recording immediately for hold-to-talk.
+      // NOTE: We do NOT start the longPress timer here because
+      // startRecording() may show a permission dialog (first time on iOS).
+      // The timer would fire during the dialog causing chaos.
+      // Instead, long-press is handled by Pressable's built-in onLongPress.
       doStartRecording();
     }
   }, [
@@ -239,23 +233,26 @@ export function MicButton({
     isAvailable,
     voiceInputMode,
     doStartRecording,
-    cancelRecording,
-    onLongPress,
   ]);
 
   const handlePressOut = useCallback(() => {
-    // Clear long-press timer
+    // Clear long-press timer (safety)
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
 
     if (voiceInputMode === 'hold' && !isLongPressRef.current) {
-      if (audioState === 'RECORDING') {
+      const currentState = useVoiceStore.getState().audioState;
+      if (currentState === 'RECORDING') {
         doStopRecording();
+      } else if (currentState === 'IDLE' || currentState === 'PLAYING_TTS') {
+        // Recording never fully started (e.g. permission dialog was showing).
+        // No need to stop — just ensure we're clean.
+        cancelRecording();
       }
     }
-  }, [voiceInputMode, audioState, doStopRecording]);
+  }, [voiceInputMode, doStopRecording, cancelRecording]);
 
   // ── TAP mode handler ───────────────────────────────────────────────
   const handlePress = useCallback(() => {
@@ -271,16 +268,18 @@ export function MicButton({
     // In hold mode, press/release is handled by pressIn/pressOut
   }, [disabled, isAvailable, voiceInputMode, audioState, doStartRecording, doStopRecording]);
 
-  // ── Long press for tap mode ────────────────────────────────────────
+  // ── Long press handler (both modes) ────────────────────────────────
   const handleLongPress = useCallback(() => {
-    if (voiceInputMode === 'tap' && onLongPress) {
-      // Cancel any active recording before opening mode sheet
-      if (audioState === 'RECORDING') {
-        cancelRecording();
-      }
-      onLongPress();
+    if (!onLongPress) return;
+
+    // Cancel any active recording before opening mode sheet
+    const currentState = useVoiceStore.getState().audioState;
+    if (currentState === 'RECORDING') {
+      isLongPressRef.current = true;
+      cancelRecording();
     }
-  }, [voiceInputMode, onLongPress, audioState, cancelRecording]);
+    onLongPress();
+  }, [onLongPress, cancelRecording]);
 
   // ── Cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
@@ -359,8 +358,8 @@ export function MicButton({
           onPress={handlePress}
           onPressIn={voiceInputMode === 'hold' ? handlePressIn : undefined}
           onPressOut={voiceInputMode === 'hold' ? handlePressOut : undefined}
-          onLongPress={voiceInputMode === 'tap' ? handleLongPress : undefined}
-          delayLongPress={600}
+          onLongPress={handleLongPress}
+          delayLongPress={800}
           disabled={disabled || isProcessing}
           hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
         >

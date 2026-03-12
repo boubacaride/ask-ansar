@@ -237,6 +237,13 @@ function useNativeSpeechRecognition(): UseSpeechRecognitionReturn {
 
 // ─── WEB: Web Speech API ────────────────────────────────────────────
 
+// Detect iOS Safari (WebKit without Chrome)
+function isIOSSafari(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /iP(hone|od|ad)/.test(ua) || (/Macintosh/.test(ua) && 'ontouchend' in document);
+}
+
 function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
   const [isAvailable, setIsAvailable] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -245,6 +252,9 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const processingGuardRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const micPermissionGrantedRef = useRef(false);
+  const startingRef = useRef(false); // track async start in progress
 
   const {
     setAudioState,
@@ -265,9 +275,30 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
     setIsAvailable(!!SpeechRecognitionAPI);
   }, []);
 
+  /**
+   * Pre-request microphone permission via getUserMedia BEFORE calling
+   * recognition.start(). This separates the native permission dialog
+   * from the speech recognition start, preventing the hold-to-talk
+   * race condition on iOS Safari.
+   */
+  const ensureMicPermission = useCallback(async (): Promise<boolean> => {
+    if (micPermissionGrantedRef.current) return true;
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Immediately stop the stream — we only needed the permission grant
+      stream.getTracks().forEach((t) => t.stop());
+      micPermissionGrantedRef.current = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const startRecording = useCallback(
     async (lang?: string) => {
       if (typeof window === 'undefined') return;
+      if (startingRef.current) return; // prevent double-start
 
       const SpeechRecognitionAPI =
         window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -279,6 +310,7 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
       }
 
       try {
+        startingRef.current = true;
         setError(null);
         setSttError(null);
         setInterimText('');
@@ -292,6 +324,25 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
           setAudioState('IDLE');
         }
 
+        // ── Step 1: Request mic permission SEPARATELY ──────────────
+        // This shows the native dialog BEFORE we start speech recognition,
+        // so the hold-to-talk gesture doesn't race with the permission popup.
+        const hasPermission = await ensureMicPermission();
+        if (!hasPermission) {
+          const msg = 'Permission du microphone refusée';
+          setError(msg);
+          setSttError(msg);
+          startingRef.current = false;
+          return;
+        }
+
+        // Check if recording was cancelled while we were waiting for permission
+        if (useVoiceStore.getState().audioState !== 'IDLE' &&
+            useVoiceStore.getState().audioState !== 'PLAYING_TTS') {
+          startingRef.current = false;
+          return;
+        }
+
         // Abort any existing recognition
         if (recognitionRef.current) {
           try {
@@ -302,7 +353,8 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
         }
 
         const recognition = new SpeechRecognitionAPI();
-        recognition.continuous = true;
+        // iOS Safari doesn't handle continuous mode well — disable it
+        recognition.continuous = !isIOSSafari();
         recognition.interimResults = true;
         recognition.lang = lang || 'fr-FR';
 
@@ -334,6 +386,13 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
         };
 
         recognition.onerror = (event: any) => {
+          // "aborted" errors are expected when we call cancel — don't surface them
+          if (event.error === 'aborted') {
+            setIsRecording(false);
+            setAudioState('IDLE');
+            clearTimeout(timeoutRef.current!);
+            return;
+          }
           const errorMessage = event.error || 'Speech recognition error';
           setError(errorMessage);
           setSttError(errorMessage);
@@ -344,7 +403,8 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
 
         recognition.onend = () => {
           setIsRecording(false);
-          if (useVoiceStore.getState().audioState === 'RECORDING') {
+          const currentState = useVoiceStore.getState().audioState;
+          if (currentState === 'RECORDING') {
             setAudioState('PROCESSING');
             setTimeout(() => {
               if (useVoiceStore.getState().audioState === 'PROCESSING') {
@@ -352,6 +412,7 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
               }
             }, 500);
           }
+          // If already PROCESSING or IDLE, don't change — let the guard timer handle it
           clearTimeout(timeoutRef.current!);
         };
 
@@ -359,6 +420,7 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
         recognition.start();
         setIsRecording(true);
         setAudioState('RECORDING');
+        startingRef.current = false;
 
         // 30-second timeout
         timeoutRef.current = setTimeout(() => {
@@ -370,9 +432,10 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
         setSttError(msg);
         setIsRecording(false);
         setAudioState('IDLE');
+        startingRef.current = false;
       }
     },
-    [audioState],
+    [audioState, ensureMicPermission],
   );
 
   const stopRecordingInternal = useCallback(() => {
@@ -389,10 +452,20 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
   const stopRecording = useCallback(async () => {
     setAudioState('PROCESSING');
     stopRecordingInternal();
+
+    // ── Safety guard: if stuck in PROCESSING for >3s, force back to IDLE ──
+    clearTimeout(processingGuardRef.current!);
+    processingGuardRef.current = setTimeout(() => {
+      if (useVoiceStore.getState().audioState === 'PROCESSING') {
+        setAudioState('IDLE');
+      }
+    }, 3000);
   }, [stopRecordingInternal]);
 
   const cancelRecording = useCallback(() => {
+    startingRef.current = false;
     clearTimeout(timeoutRef.current!);
+    clearTimeout(processingGuardRef.current!);
     if (recognitionRef.current) {
       try {
         recognitionRef.current.abort();
@@ -413,6 +486,7 @@ function useWebSpeechRecognition(): UseSpeechRecognitionReturn {
   useEffect(() => {
     return () => {
       clearTimeout(timeoutRef.current!);
+      clearTimeout(processingGuardRef.current!);
       if (recognitionRef.current) {
         try {
           recognitionRef.current.abort();
