@@ -6,13 +6,17 @@ import { useChatStore } from '@/store/chatStore';
 import { generateResponseStream } from '@/utils/chatUtils';
 import ChatTitle from '@/components/ChatTitle';
 import MessageBubble from '@/components/MessageBubble';
+import { MicButton } from '@/components/voice/MicButton';
+import { LanguageBadge } from '@/components/voice/LanguageBadge';
+import { VoiceModeSheet } from '@/components/voice/VoiceModeSheet';
+import { VoiceConversationOverlay } from '@/components/voice/VoiceConversationOverlay';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { FR } from '@/ui/strings.fr';
 import type { ChatMessage } from '@/types/chat';
 
 export default function ChatScreen() {
-  const { darkMode } = useSettings();
+  const { darkMode, voiceEnabled } = useSettings();
   const { messages, addMessage, updateMessage } = useChatStore();
   const [input, setInput] = useState('');
   const [inputHeight, setInputHeight] = useState(48);
@@ -22,6 +26,8 @@ export default function ChatScreen() {
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [messageToShare, setMessageToShare] = useState('');
+  const [voiceModeSheetVisible, setVoiceModeSheetVisible] = useState(false);
+  const [voiceConversationVisible, setVoiceConversationVisible] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const scrollToEnd = useCallback(() => {
@@ -110,6 +116,44 @@ export default function ChatScreen() {
       scrollToEnd();
     }
   }, [input, isLoading, addMessage, updateMessage, scrollToEnd]);
+
+  const handleVoiceConversationSend = useCallback(async (text: string): Promise<string> => {
+    // Create user message
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      text,
+      isUser: true,
+      timestamp: Date.now(),
+    };
+    addMessage(userMessage);
+
+    // Create bot message placeholder
+    const botId = (Date.now() + 1).toString();
+    const botMessage: ChatMessage = {
+      id: botId,
+      text: '',
+      isUser: false,
+      timestamp: Date.now(),
+    };
+    addMessage(botMessage);
+    scrollToEnd();
+
+    // Generate response (non-streaming for voice mode)
+    let fullResponse = '';
+    const onToken = (token: string) => {
+      fullResponse += token;
+    };
+
+    try {
+      const response = await generateResponseStream(text, onToken);
+      updateMessage(botId, response.text, response.arabicText, response.translation, response.sources);
+      return response.text;
+    } catch (error) {
+      const errorText = 'D\u00e9sol\u00e9, une erreur est survenue.';
+      updateMessage(botId, errorText);
+      return errorText;
+    }
+  }, [addMessage, updateMessage, scrollToEnd]);
 
   const handleCopyMessage = useCallback(async (text: string, messageId: string) => {
     try {
@@ -304,6 +348,18 @@ export default function ChatScreen() {
                       }
                     }}
                   />
+                  {voiceEnabled && (
+                    <>
+                      <LanguageBadge darkMode={darkMode} />
+                      <MicButton
+                        darkMode={darkMode}
+                        onTranscript={(text) => setInput(text)}
+                        onFinalTranscript={(text) => setInput(text)}
+                        disabled={isLoading}
+                        onLongPress={() => setVoiceModeSheetVisible(true)}
+                      />
+                    </>
+                  )}
                   <Pressable
                     style={[
                       styles.sendButton,
@@ -399,6 +455,23 @@ export default function ChatScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <VoiceModeSheet
+        visible={voiceModeSheetVisible}
+        onClose={() => setVoiceModeSheetVisible(false)}
+        darkMode={darkMode}
+        onSelectConversationMode={() => {
+          setVoiceModeSheetVisible(false);
+          setVoiceConversationVisible(true);
+        }}
+      />
+
+      <VoiceConversationOverlay
+        visible={voiceConversationVisible}
+        onClose={() => setVoiceConversationVisible(false)}
+        darkMode={darkMode}
+        onSendMessage={handleVoiceConversationSend}
+      />
     </View>
   );
 }
