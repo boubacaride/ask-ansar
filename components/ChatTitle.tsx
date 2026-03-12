@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Platform, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '@/store/settingsStore';
+import { AutoReadToggle } from './voice/AutoReadToggle';
 
 export default function ChatTitle() {
   const { darkMode } = useSettings();
@@ -20,6 +21,8 @@ export default function ChatTitle() {
         <Text style={[styles.title, darkMode && styles.titleDark]}>
           Ask Ansar
         </Text>
+        <View style={styles.spacer} />
+        <AutoReadToggle darkMode={darkMode} />
       </View>
     </View>
   );
@@ -87,5 +90,8 @@ const styles = StyleSheet.create({
   },
   titleDark: {
     color: '#4A9EFF',
+  },
+  spacer: {
+    flex: 1,
   },
 });

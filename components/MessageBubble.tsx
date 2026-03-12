@@ -4,6 +4,7 @@ import { Copy, Share, Sparkles } from 'lucide-react-native';
 import { FR } from '@/ui/strings.fr';
 import FormattedText from './FormattedText';
 import SourceBadges from './SourceBadges';
+import { SpeakerButton } from './voice/SpeakerButton';
 import type { SourceBadge } from '@/types/chat';
 
 interface MessageBubbleProps {
@@ -116,6 +117,11 @@ function MessageBubbleInner({
                   {FR.share}
                 </Text>
               </Pressable>
+              <SpeakerButton
+                messageId={message.id}
+                messageText={message.text}
+                darkMode={darkMode}
+              />
             </View>
           )}
         </View>
