@@ -265,9 +265,11 @@ export function MicButton({
       const currentState = useVoiceStore.getState().audioState;
       if (currentState === 'RECORDING') {
         doStopRecording();
-      } else if (currentState === 'IDLE' || currentState === 'PLAYING_TTS') {
-        // Recording never fully started (e.g. permission dialog was showing).
-        // No need to stop — just ensure we're clean.
+      } else if (currentState === 'PROCESSING') {
+        // Recognition already auto-ended (iOS Safari non-continuous mode).
+        // The onend handler is already transitioning to IDLE — nothing to do.
+      } else {
+        // IDLE or PLAYING_TTS — recording never fully started or already ended.
         cancelRecording();
       }
     }
