@@ -22,6 +22,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         'Allow Ask Ansar to use your location for navigation to sacred places and the Seerah map experience.',
       NSLocationAlwaysAndWhenInUseUsageDescription:
         'Allow Ask Ansar to use your location for navigation to sacred places and the Seerah map experience.',
+      NSMicrophoneUsageDescription:
+        'Allow Ask Ansar to use your microphone for voice input and voice conversations.',
+      NSSpeechRecognitionUsageDescription:
+        'Allow Ask Ansar to transcribe your speech into text for questions.',
     },
   },
   android: {
@@ -38,6 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     permissions: [
       'ACCESS_COARSE_LOCATION',
       'ACCESS_FINE_LOCATION',
+      'RECORD_AUDIO',
     ],
   },
   web: {
@@ -57,6 +62,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
           'Allow Ask Ansar to use your location for navigation to sacred places and the Seerah map experience.',
         locationWhenInUsePermission:
           'Allow Ask Ansar to use your location for navigation to sacred places and the Seerah map experience.',
+      },
+    ],
+    [
+      'expo-speech-recognition',
+      {
+        microphonePermission:
+          'Allow Ask Ansar to use your microphone for voice input.',
+        speechRecognitionPermission:
+          'Allow Ask Ansar to transcribe your speech.',
       },
     ],
   ],
