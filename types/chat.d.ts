@@ -44,4 +44,5 @@ export type ChatMessage = {
   translation?: string;
   sources?: SourceBadge[];
   fromCache?: boolean;
+  isWelcome?: boolean;
 };

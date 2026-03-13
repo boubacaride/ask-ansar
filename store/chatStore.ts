@@ -17,7 +17,8 @@ const initialState = {
     text: WELCOME_MESSAGE,
     isUser: false,
     timestamp: Date.now(),
-    source: "Ansar Voyage"
+    source: "Ansar Voyage",
+    isWelcome: true,
   }]
 };
 
@@ -37,20 +38,37 @@ export const useChatStore = create(
               : m
           ),
         })),
-      clearMessages: () => 
+      clearMessages: () =>
         set(() => ({
           messages: [{
             id: Date.now().toString(),
             text: WELCOME_MESSAGE,
             isUser: false,
             timestamp: Date.now(),
-            source: "Ansar Voyage"
+            source: "Ansar Voyage",
+            isWelcome: true,
           }]
         })),
     }),
     {
       name: 'chat-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      migrate: (persisted: any, version: number) => {
+        if (version === 0 || !version) {
+          // Mark old welcome messages that don't have the isWelcome flag
+          const state = persisted as ChatStore;
+          if (state?.messages) {
+            state.messages = state.messages.map((m) => {
+              if (!m.isUser && m.text?.startsWith('Assalamou alaykoum')) {
+                return { ...m, isWelcome: true };
+              }
+              return m;
+            });
+          }
+        }
+        return persisted as ChatStore;
+      },
     }
   )
 );
