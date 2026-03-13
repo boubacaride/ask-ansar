@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   getCollectionMetadata,
   getCollectionBooks,
   getBookHadiths,
+  translateToFrench,
   TranslatedHadith,
   HadithBook,
   CollectionMetadata,
@@ -47,6 +48,9 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
   const [showEnglish, setShowEnglish] = useState(false);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedHadith, setSelectedHadith] = useState<TranslatedHadith | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [translationProgress, setTranslationProgress] = useState(0);
+  const translationAbortRef = useRef<AbortController | null>(null);
 
   const colors = {
     background: darkMode ? '#0a0a0a' : '#f8f9fa',
@@ -113,26 +117,68 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
     setError(null);
     setSelectedBook(bookNumber);
     setViewMode('hadiths');
+    setTranslating(false);
+    setTranslationProgress(0);
+
+    // Abort any ongoing translation from a previous book
+    translationAbortRef.current?.abort();
 
     try {
-      const data = await getBookHadiths(collectionId, bookNumber);
+      // Phase 1: Load hadiths WITHOUT translation (fast — shows content immediately)
+      const data = await getBookHadiths(collectionId, bookNumber, { skipTranslation: true });
 
       if (!data || data.length === 0) {
         setError('Aucun hadith trouvé pour ce livre. Veuillez réessayer.');
+        setLoading(false);
         return;
       }
 
+      // Show hadiths immediately (Arabic + English available)
       setHadiths(data);
+      setLoading(false);
+
+      // Phase 2: Translate to French progressively in the background
+      const needsTranslation = data.some(h => !h.frenchText || h.frenchText === '');
+      if (needsTranslation) {
+        setTranslating(true);
+        const controller = new AbortController();
+        translationAbortRef.current = controller;
+
+        try {
+          await translateToFrench(
+            data,
+            (updatedHadiths, progress) => {
+              if (!controller.signal.aborted) {
+                setHadiths(updatedHadiths);
+                setTranslationProgress(progress);
+              }
+            },
+            controller.signal,
+          );
+        } catch (translateErr) {
+          console.warn('Background translation failed:', translateErr);
+        } finally {
+          if (!controller.signal.aborted) {
+            setTranslating(false);
+          }
+        }
+
+        // Cache translated hadiths in background
+        // (cacheHadiths is called inside getBookHadiths but since we skipped translation,
+        //  re-caching is handled by translateToFrench's per-hadith cache)
+      }
     } catch (err) {
       console.error('Error loading book hadiths:', err);
       const errorMessage = err instanceof Error ? err.message : 'Échec du chargement des hadiths';
       setError(errorMessage);
-    } finally {
       setLoading(false);
     }
   };
 
   const goBackToBooks = () => {
+    // Abort any ongoing background translation
+    translationAbortRef.current?.abort();
+    setTranslating(false);
     setViewMode('books');
     setSelectedBook(null);
     setHadiths([]);
@@ -251,6 +297,19 @@ export function HadithViewer({ visible, url, collectionName, onClose }: HadithVi
 
   const renderHadithsView = () => (
     <>
+      {/* Translation progress indicator */}
+      {translating && (
+        <View style={[styles.translationBar, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={[styles.translationBarText, { color: colors.textSecondary }]}>
+            Traduction en cours... {translationProgress}%
+          </Text>
+          <View style={[styles.translationProgressBg, { backgroundColor: colors.border }]}>
+            <View style={[styles.translationProgressFill, { width: `${translationProgress}%`, backgroundColor: colors.primary }]} />
+          </View>
+        </View>
+      )}
+
       <View style={[styles.languageToggle, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <TouchableOpacity
           style={[styles.toggleButton, showArabic && { backgroundColor: colors.accent }]}
@@ -690,5 +749,28 @@ const styles = StyleSheet.create({
   shareModalCancelText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  translationBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    paddingHorizontal: 16,
+    gap: 8,
+    borderBottomWidth: 1,
+  },
+  translationBarText: {
+    fontSize: 12,
+    fontWeight: '500',
+    flex: 1,
+  },
+  translationProgressBg: {
+    width: 60,
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  translationProgressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
 });

@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -171,11 +172,46 @@ export default function DjibrilScreen() {
     await soundRef.current.setPositionAsync(Math.max(positionMs - 15000, 0));
   }, [positionMs]);
 
-  const renderVideoCard = (video: VideoItem) => (
+  const handleVideoPress = useCallback(async (video: VideoItem) => {
+    // If audio is already playing from a different part, prompt user
+    if (isPlaying && currentVideo && currentVideo.id !== video.id) {
+      if (Platform.OS === 'web') {
+        const confirmed = window.confirm(
+          "Un audio est en cours de lecture. Voulez-vous l'arrêter et ouvrir celui-ci ?"
+        );
+        if (confirmed) {
+          await closePlayer();
+          setTimeout(() => openPlayer(video), 150);
+        }
+      } else {
+        Alert.alert(
+          'Audio en cours',
+          "Un audio est en cours de lecture. Voulez-vous l'arrêter et ouvrir celui-ci ?",
+          [
+            { text: 'Non', style: 'cancel' },
+            {
+              text: 'Oui',
+              onPress: async () => {
+                await closePlayer();
+                openPlayer(video);
+              },
+            },
+          ]
+        );
+      }
+      return;
+    }
+    openPlayer(video);
+  }, [isPlaying, currentVideo, closePlayer, openPlayer]);
+
+  const renderVideoCard = (video: VideoItem) => {
+    const isCardActive = currentVideo?.id === video.id && playerVisible;
+
+    return (
     <TouchableOpacity
       key={video.id}
-      style={[styles.videoCard, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-      onPress={() => openPlayer(video)}
+      style={[styles.videoCard, { backgroundColor: colors.card, borderColor: isCardActive ? '#1565C0' : colors.cardBorder }]}
+      onPress={() => handleVideoPress(video)}
       activeOpacity={0.85}
     >
       {/* Thumbnail with overlay */}
@@ -198,6 +234,13 @@ export default function DjibrilScreen() {
         <View style={styles.seriesBadge}>
           <Text style={styles.seriesBadgeText}>Fran{'\u00e7'}ais</Text>
         </View>
+        {/* Now playing indicator */}
+        {isCardActive && (
+          <View style={styles.nowPlayingBadge}>
+            <Ionicons name="musical-notes" size={12} color="#fff" />
+            <Text style={styles.nowPlayingText}>En cours...</Text>
+          </View>
+        )}
       </View>
       {/* Card body */}
       <View style={styles.cardBody}>
@@ -214,7 +257,8 @@ export default function DjibrilScreen() {
         </Text>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -522,6 +566,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  nowPlayingBadge: {
+    position: 'absolute',
+    bottom: 10,
+    left: 10,
+    backgroundColor: '#1565C0',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  nowPlayingText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   seriesBadge: {
     position: 'absolute',

@@ -990,14 +990,25 @@ async function translateTextWithOpenAI(text: string): Promise<string> {
 /**
  * Translate hadiths to French, processing in small batches to avoid
  * overwhelming API rate limits on mobile devices.
+ *
+ * When `onBatchComplete` is provided, uses progressive mode:
+ *  - Larger batch size (5 instead of 3)
+ *  - Calls back after each batch with the full updated array and progress %
+ *  - Respects AbortSignal for cancellation
  */
-async function translateToFrench(
-  hadiths: TranslatedHadith[]
+export async function translateToFrench(
+  hadiths: TranslatedHadith[],
+  onBatchComplete?: (updatedHadiths: TranslatedHadith[], progress: number) => void,
+  signal?: AbortSignal,
 ): Promise<TranslatedHadith[]> {
-  const BATCH_SIZE = 3; // Translate 3 hadiths at a time to avoid rate limits
-  const results: TranslatedHadith[] = [];
+  const BATCH_SIZE = onBatchComplete ? 5 : 3;
+  // In progressive mode, start with a full copy so we can replace in-place
+  const results: TranslatedHadith[] = onBatchComplete ? [...hadiths] : [];
 
   for (let i = 0; i < hadiths.length; i += BATCH_SIZE) {
+    // Check abort before starting each batch
+    if (signal?.aborted) break;
+
     const batch = hadiths.slice(i, i + BATCH_SIZE);
 
     const translatedBatch = await Promise.all(
@@ -1042,7 +1053,16 @@ async function translateToFrench(
       })
     );
 
-    results.push(...translatedBatch);
+    if (onBatchComplete) {
+      // Progressive mode: replace in the full results array
+      for (let j = 0; j < translatedBatch.length; j++) {
+        results[i + j] = translatedBatch[j];
+      }
+      const progress = Math.min(100, Math.round(((i + batch.length) / hadiths.length) * 100));
+      onBatchComplete([...results], progress);
+    } else {
+      results.push(...translatedBatch);
+    }
   }
 
   return results;
@@ -1089,7 +1109,8 @@ async function cacheHadiths(
 
 export async function getBookHadiths(
   collectionId: string,
-  bookNumber: number
+  bookNumber: number,
+  options?: { skipTranslation?: boolean },
 ): Promise<TranslatedHadith[]> {
   console.log(`[getBookHadiths] Fetching hadiths for ${collectionId}, book ${bookNumber}`);
 
@@ -1176,12 +1197,14 @@ export async function getBookHadiths(
     throw new Error(errorMessage);
   }
 
-  // Translate to French (non-blocking, batched)
-  try {
-    console.log(`Translating ${hadiths.length} hadiths to French...`);
-    hadiths = await translateToFrench(hadiths);
-  } catch (translateError) {
-    console.warn('Translation failed, using available text:', translateError);
+  // Translate to French (skip if requested for progressive loading)
+  if (!options?.skipTranslation) {
+    try {
+      console.log(`Translating ${hadiths.length} hadiths to French...`);
+      hadiths = await translateToFrench(hadiths);
+    } catch (translateError) {
+      console.warn('Translation failed, using available text:', translateError);
+    }
   }
 
   // Cache in background (don't block the response)

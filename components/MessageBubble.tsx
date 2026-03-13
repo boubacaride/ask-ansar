@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
 import { useEffect, useRef, memo } from 'react';
 import { Copy, Share, Sparkles } from 'lucide-react-native';
 import { FR } from '@/ui/strings.fr';
+import { WELCOME_MESSAGE } from '@/app/api/chat';
 import FormattedText from './FormattedText';
 import SourceBadges from './SourceBadges';
 import { SpeakerButton } from './voice/SpeakerButton';
@@ -96,8 +97,8 @@ function MessageBubbleInner({
             <SourceBadges sources={message.sources} darkMode={darkMode} />
           )}
 
-          {/* Hide action buttons while streaming */}
-          {!isStreaming && (
+          {/* Hide action buttons while streaming and on the welcome card */}
+          {!isStreaming && message.text !== WELCOME_MESSAGE && (
             <View style={styles.messageActions}>
               <Pressable
                 style={[styles.actionButton, darkMode && styles.actionButtonDark]}

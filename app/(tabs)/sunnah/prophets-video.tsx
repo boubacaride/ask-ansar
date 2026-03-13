@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -55,7 +56,7 @@ const CHAPTERS: Chapter[] = [
 ];
 
 function getEmbedUrl(startSeconds: number): string {
-  return `https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?start=${startSeconds}&autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+  return `https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?start=${startSeconds}&autoplay=1&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`;
 }
 
 export default function ProphetsVideoScreen() {
@@ -65,6 +66,7 @@ export default function ProphetsVideoScreen() {
   const [loading, setLoading] = useState(true);
   const webViewRef = useRef<any>(null);
   const [videoUrl, setVideoUrl] = useState(getEmbedUrl(0));
+  const [videoStopped, setVideoStopped] = useState(false);
 
   const colors = {
     bg: darkMode ? '#0a0a0a' : '#f8f9fa',
@@ -81,11 +83,43 @@ export default function ProphetsVideoScreen() {
 
   const videoHeight = Math.round((SCREEN_WIDTH) * 9 / 16);
 
-  const handleChapterPress = useCallback((index: number) => {
-    setActiveChapter(index);
-    setLoading(true);
-    setVideoUrl(getEmbedUrl(CHAPTERS[index].seconds));
+  const handleStopVideo = useCallback(() => {
+    setVideoStopped(true);
+    setLoading(false);
   }, []);
+
+  const handleChapterPress = useCallback((index: number) => {
+    // Same chapter and already playing? Do nothing
+    if (index === activeChapter && !videoStopped) return;
+
+    const doSwitch = () => {
+      setActiveChapter(index);
+      setLoading(true);
+      setVideoUrl(getEmbedUrl(CHAPTERS[index].seconds));
+      setVideoStopped(false);
+    };
+
+    // If video is active (not stopped) and switching to a different chapter, prompt
+    if (!videoStopped && index !== activeChapter) {
+      if (Platform.OS === 'web') {
+        const confirmed = window.confirm(
+          "Une vidéo est en cours de lecture. Voulez-vous passer à ce chapitre ?"
+        );
+        if (confirmed) doSwitch();
+      } else {
+        Alert.alert(
+          'Vidéo en cours',
+          "Une vidéo est en cours de lecture. Voulez-vous passer à ce chapitre ?",
+          [
+            { text: 'Non', style: 'cancel' },
+            { text: 'Oui', onPress: doSwitch },
+          ]
+        );
+      }
+    } else {
+      doSwitch();
+    }
+  }, [activeChapter, videoStopped]);
 
   const renderChapter = useCallback(({ item, index }: { item: Chapter; index: number }) => {
     const isActive = index === activeChapter;
@@ -167,10 +201,25 @@ export default function ProphetsVideoScreen() {
 
       {/* Video Player */}
       <View style={[styles.videoContainer, { height: videoHeight }]}>
-        {webViewContent}
-        {loading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#c9a227" />
+        {!videoStopped ? (
+          <>
+            {webViewContent}
+            {loading && (
+              <View style={styles.loadingOverlay}>
+                <ActivityIndicator size="large" color="#c9a227" />
+              </View>
+            )}
+          </>
+        ) : (
+          <View style={styles.stoppedOverlay}>
+            <TouchableOpacity
+              style={styles.resumeButton}
+              onPress={() => { setVideoStopped(false); setLoading(true); }}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="play-circle" size={56} color="#c9a227" />
+              <Text style={styles.resumeText}>Reprendre la lecture</Text>
+            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -178,9 +227,15 @@ export default function ProphetsVideoScreen() {
       {/* Chapter List Header */}
       <View style={[styles.chaptersHeader, { backgroundColor: colors.card, borderBottomColor: colors.cardBorder }]}>
         <FontAwesome5 name="list-ol" size={14} color={colors.accent} />
-        <Text style={[styles.chaptersHeaderText, { color: colors.text }]}>
+        <Text style={[styles.chaptersHeaderText, { color: colors.text, flex: 1 }]}>
           Chapitres ({CHAPTERS.length})
         </Text>
+        {!videoStopped && (
+          <TouchableOpacity style={styles.stopButton} onPress={handleStopVideo} activeOpacity={0.7}>
+            <Ionicons name="stop-circle" size={22} color="#EF4444" />
+            <Text style={styles.stopButtonText}>Arrêter</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Chapter List */}
@@ -236,6 +291,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  stoppedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resumeButton: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  resumeText: {
+    color: '#c9a227',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  stopButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+  },
+  stopButtonText: {
+    color: '#EF4444',
+    fontSize: 13,
+    fontWeight: '600',
   },
   chaptersHeader: {
     flexDirection: 'row',
