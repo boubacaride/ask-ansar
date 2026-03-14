@@ -55,7 +55,7 @@ export default function DuasScreen() {
         <View style={[styles.header, { borderBottomColor: colors.cardBorder, paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.replace('/(tabs)/sunnah')}
+            onPress={() => router.back()}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>

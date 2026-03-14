@@ -420,7 +420,7 @@ export default function DuaCategoryDetailScreen() {
           style={styles.gradient}
         >
           <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/sunnah/duas')}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerContent}>
@@ -450,7 +450,7 @@ export default function DuaCategoryDetailScreen() {
           style={styles.gradient}
         >
           <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
-            <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/sunnah/duas')}>
+            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
               <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <View style={styles.headerContent}>
@@ -483,7 +483,7 @@ export default function DuaCategoryDetailScreen() {
         style={styles.gradient}
       >
         <View style={[styles.header, { borderBottomColor: colors.cardBorder }]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.replace('/(tabs)/sunnah/duas')}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>

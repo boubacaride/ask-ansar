@@ -1756,7 +1756,7 @@ export default function SeerahMapScreen() {
       >
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.replace('/(tabs)/sunnah')}
+          onPress={() => router.back()}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>

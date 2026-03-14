@@ -626,7 +626,7 @@ export default function BibliothequeScreen() {
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.replace('/(tabs)/sunnah/hadith-collections')}
+            onPress={() => router.back()}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />

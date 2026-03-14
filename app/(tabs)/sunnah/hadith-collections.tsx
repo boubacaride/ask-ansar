@@ -141,7 +141,7 @@ export default function HadithCollectionsScreen() {
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.replace('/(tabs)/sunnah')}
+            onPress={() => router.back()}
             activeOpacity={0.7}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />

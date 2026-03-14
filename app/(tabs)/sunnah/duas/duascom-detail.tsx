@@ -50,18 +50,7 @@ export default function DuasComDetailScreen() {
   };
 
   const handleGoBack = () => {
-    if (params.categoryId) {
-      router.navigate({
-        pathname: '/(tabs)/sunnah/duas/duascom-category',
-        params: {
-          categoryId: params.categoryId,
-          categoryName: params.categoryName || '',
-          categorySlug: params.categorySlug || '',
-        },
-      });
-    } else {
-      router.navigate('/(tabs)/sunnah/duas/categories');
-    }
+    router.back();
   };
 
   const handleShare = async () => {

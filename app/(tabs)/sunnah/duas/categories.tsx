@@ -279,7 +279,7 @@ export default function DuasComCategoriesScreen() {
         >
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => router.navigate('/(tabs)/sunnah/duas')}
+            onPress={() => router.back()}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
@@ -334,7 +334,7 @@ export default function DuasComCategoriesScreen() {
             <>
               {/* Breadcrumb */}
               <View style={styles.breadcrumb}>
-                <TouchableOpacity onPress={() => router.navigate('/(tabs)/sunnah/duas')}>
+                <TouchableOpacity onPress={() => router.back()}>
                   <Text style={[styles.breadcrumbLink, { color: colors.accent }]}>Dou'as</Text>
                 </TouchableOpacity>
                 <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />

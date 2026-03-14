@@ -71,7 +71,7 @@ export default function DuasComCategoryDetailScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: (Platform.OS === 'web' ? 20 : insets.top) + 10 }]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Cat{'é'}gorie introuvable</Text>
@@ -81,7 +81,7 @@ export default function DuasComCategoryDetailScreen() {
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
             Cette cat{'é'}gorie n'a pas {'é'}t{'é'} trouv{'é'}e.
           </Text>
-          <TouchableOpacity onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
+          <TouchableOpacity onPress={() => router.back()}>
             <Text style={[styles.emptyLink, { color: colors.accent }]}>Retour</Text>
           </TouchableOpacity>
         </View>
@@ -105,7 +105,7 @@ export default function DuasComCategoryDetailScreen() {
             },
           ]}
         >
-          <TouchableOpacity style={styles.backButton} onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={styles.headerContent}>
@@ -148,7 +148,7 @@ export default function DuasComCategoryDetailScreen() {
 
         {/* Breadcrumb */}
         <View style={styles.breadcrumbContainer}>
-          <TouchableOpacity onPress={() => router.navigate('/(tabs)/sunnah/duas/categories')}>
+          <TouchableOpacity onPress={() => router.back()}>
             <Text style={[styles.breadcrumbLink, { color: colors.accent }]}>Cat{'é'}gories</Text>
           </TouchableOpacity>
           <Ionicons name="chevron-forward" size={14} color={colors.textSecondary} />
