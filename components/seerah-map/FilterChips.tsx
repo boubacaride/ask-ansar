@@ -209,7 +209,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
             >
               <FontAwesome5
                 name={category.icon === 'kaaba' ? 'kaaba' : category.icon}
-                size={12}
+                size={20}
                 color={isActive ? '#fff' : category.color}
               />
               <Text
@@ -263,7 +263,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
             >
               <FontAwesome5
                 name="map-marker-alt"
-                size={12}
+                size={20}
                 color={isActive ? '#fff' : colors.secondary}
               />
               <Text
@@ -309,7 +309,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
         >
           <FontAwesome5
             name="eye-slash"
-            size={12}
+            size={20}
             color={filters.showOnlyUnvisited ? '#fff' : colors.primary}
           />
           <Text
@@ -334,7 +334,7 @@ export const FilterChips: React.FC<FilterChipsProps> = ({
         >
           <FontAwesome5
             name="heart"
-            size={12}
+            size={20}
             color={filters.showOnlyFavorites ? '#fff' : '#E91E63'}
             solid={filters.showOnlyFavorites}
           />
@@ -416,36 +416,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   chipsContainer: {
-    maxHeight: 44,
+    maxHeight: 80,
   },
   chipsContent: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 6,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 28,
+    borderWidth: 1.5,
+    gap: 10,
   },
   chipText: {
-    fontSize: 12,
+    fontSize: 18,
     fontWeight: '600',
   },
   countBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    minWidth: 20,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 14,
+    minWidth: 28,
     alignItems: 'center',
   },
   countText: {
-    fontSize: 10,
+    fontSize: 15,
     fontWeight: '700',
   },
   divider: {
