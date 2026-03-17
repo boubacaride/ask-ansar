@@ -143,7 +143,7 @@ function ManeuverIcon({ type, modifier }: { type?: string; modifier?: string }) 
   }
   return (
     <View style={navStyles.maneuverIcon}>
-      <Ionicons name={iconName as any} size={32} color="#fff" />
+      <Ionicons name={iconName as any} size={72} color="#fff" />
     </View>
   );
 }
@@ -2028,9 +2028,9 @@ const styles = StyleSheet.create({
 // ─── Navigation-mode styles ────────────────────────────────────────
 const navStyles = StyleSheet.create({
   maneuverIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
+    width: 110,
+    height: 110,
+    borderRadius: 24,
     backgroundColor: '#4285F4',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2131,9 +2131,9 @@ const navStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(50,50,50,0.95)',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    gap: 14,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    gap: 20,
     zIndex: 10,
   },
   maneuverInfo: {
@@ -2141,13 +2141,13 @@ const navStyles = StyleSheet.create({
   },
   maneuverDistance: {
     color: '#fff',
-    fontSize: 22,
+    fontSize: 36,
     fontWeight: '800',
   },
   maneuverInstruction: {
     color: '#ddd',
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 20,
+    marginTop: 4,
   },
   infoPanel: {
     position: 'absolute',
