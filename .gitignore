@@ -39,7 +39,8 @@ nul
 Thumbs.db
 
 # claude
-.claude/
+.claude/*
+!.claude/skills/
 
 # bolt
 .bolt/
