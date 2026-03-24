@@ -18,6 +18,7 @@ import {
 import Svg, { Path, Circle as SvgCircle, Polygon } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
+import * as Speech from 'expo-speech';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigationStore, SavedLocation, MapboxRoute, MapboxStep } from '@/store/navigationstore';
@@ -30,6 +31,45 @@ const MAPBOX_ACCESS_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN || '';
 const GOOGLE_MAPS_KEY = 'AIzaSyDEwtaEWWtkJb6zyIyRQdxPMjmcpasx0H8';
 const OFF_ROUTE_THRESHOLD_M = 40;
 const REROUTE_COOLDOWN_MS = 5000;
+
+// ─── Voice guidance helpers ──────────────────────────────────────────
+const VOICE_FAR_THRESHOLD_M = 200;   // First announcement distance
+const VOICE_NEAR_THRESHOLD_M = 50;   // Reminder announcement distance
+
+function speakNavigation(text: string) {
+  Speech.stop();
+  if (Platform.OS === 'web') {
+    // Use Web Speech API on web
+    if (typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'en-US';
+      utter.rate = 1.0;
+      window.speechSynthesis.speak(utter);
+    }
+  } else {
+    Speech.speak(text, { language: 'en', rate: 1.0, pitch: 1.0 });
+  }
+}
+
+function buildVoiceInstruction(step: MapboxStep, distanceM: number): string {
+  // Use the Mapbox instruction directly — it's already a natural sentence
+  const instruction = step.maneuver.instruction || step.name || '';
+  if (distanceM > 100) {
+    return `In ${formatDistanceForVoice(distanceM)}, ${instruction}`;
+  }
+  return instruction;
+}
+
+function formatDistanceForVoice(meters: number): string {
+  if (meters >= 1000) {
+    const km = (meters / 1000).toFixed(1);
+    return `${km} kilometers`;
+  }
+  // Round to nearest 10m for cleaner speech
+  const rounded = Math.round(meters / 10) * 10;
+  return `${rounded} meters`;
+}
 
 // Calculate bearing between two coordinates in degrees
 function calculateBearing(
@@ -429,6 +469,11 @@ export default function NavigationScreen() {
   const webViewRef = useRef<any>(null);
   const gpsSubscription = useRef<Location.LocationSubscription | null>(null);
   const mapReadyRef = useRef(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+
+  // Voice guidance tracking refs (avoid re-renders)
+  const lastAnnouncedStepRef = useRef(-1);
+  const lastAnnouncedDistanceBandRef = useRef<'far' | 'near' | 'none'>('none');
 
   // Get user's current location on mount + watch heading
   useEffect(() => {
@@ -732,9 +777,19 @@ const handleDeleteLocation = (location: SavedLocation) => {
   }, [viewMode, handleWebViewMessage]);
 
   const handleStartActiveNavigation = useCallback(() => {
-    updateNavigationProgress({ phase: 'navigating' });
+    updateNavigationProgress({ phase: 'navigating', currentStepIndex: 0 });
     setViewMode('navigating');
     sendToWebView({ type: 'startNavigation' });
+    // Reset voice refs and announce first step
+    lastAnnouncedStepRef.current = -1;
+    lastAnnouncedDistanceBandRef.current = 'none';
+    if (voiceEnabled) {
+      const session = useNavigationStore.getState().navigationSession;
+      const firstStep = session?.routes[session.selectedRouteIndex]?.legs?.[0]?.steps?.[0];
+      if (firstStep) {
+        setTimeout(() => speakNavigation(firstStep.maneuver.instruction || 'Navigation started.'), 500);
+      }
+    }
     // Start GPS tracking
     if (Platform.OS === 'web') {
       if (navigator.geolocation) {
@@ -780,7 +835,8 @@ const handleDeleteLocation = (location: SavedLocation) => {
       const distToDest = haversineMeters(lat, lng, dest.latitude, dest.longitude);
       if (distToDest < 30) {
         updateNavigationProgress({ phase: 'arrived' });
-        Alert.alert('Arrivée', 'Vous êtes arrivé à destination !');
+        if (voiceEnabled) speakNavigation('You have arrived at your destination.');
+        Alert.alert('Arrived', 'You have arrived at your destination!');
         stopNavigation();
         return;
       }
@@ -792,18 +848,54 @@ const handleDeleteLocation = (location: SavedLocation) => {
       remaining += haversineMeters(route[i][0], route[i][1], route[i + 1][0], route[i + 1][1]);
     }
 
-    // Find current step
+    // ─── Forward-only step tracking ─────────────────────────────────
+    // Find the next upcoming step by scanning forward from the current step.
+    // A step is "passed" when the user is closer to the NEXT step's maneuver
+    // point than the current one, or within 30m of the current maneuver point.
     const currentRoute = session.routes[session.selectedRouteIndex];
-    let currentStepIdx = 0;
     const steps = currentRoute?.legs[0]?.steps || [];
-    let closestDist = Infinity;
-    for (let i = 0; i < steps.length; i++) {
-      const [sLng, sLat] = steps[i].maneuver.location;
-      const d = haversineMeters(lat, lng, sLat, sLng);
-      if (d < closestDist) { closestDist = d; currentStepIdx = i; }
+    let currentStepIdx = session.currentStepIndex;
+
+    // Advance past steps we've already passed (only move forward, never backward)
+    while (currentStepIdx < steps.length - 1) {
+      const [curLng, curLat] = steps[currentStepIdx].maneuver.location;
+      const distToCurrent = haversineMeters(lat, lng, curLat, curLng);
+
+      const [nextLng, nextLat] = steps[currentStepIdx + 1].maneuver.location;
+      const distToNext = haversineMeters(lat, lng, nextLat, nextLng);
+
+      // Passed this step: within 30m of it, or closer to the next one
+      if (distToCurrent < 30 || distToNext < distToCurrent) {
+        currentStepIdx++;
+      } else {
+        break;
+      }
     }
-    if (closestDist < 50 && currentStepIdx < steps.length - 1) {
-      currentStepIdx++;
+
+    // ─── Voice guidance ─────────────────────────────────────────────
+    if (voiceEnabled && currentStepIdx < steps.length) {
+      const step = steps[currentStepIdx];
+      const [sLng, sLat] = step.maneuver.location;
+      const distToManeuver = haversineMeters(lat, lng, sLat, sLng);
+
+      if (currentStepIdx !== lastAnnouncedStepRef.current) {
+        // New step — reset distance band and announce if approaching
+        lastAnnouncedDistanceBandRef.current = 'none';
+        if (distToManeuver <= VOICE_FAR_THRESHOLD_M) {
+          lastAnnouncedStepRef.current = currentStepIdx;
+          lastAnnouncedDistanceBandRef.current = distToManeuver <= VOICE_NEAR_THRESHOLD_M ? 'near' : 'far';
+          speakNavigation(buildVoiceInstruction(step, distToManeuver));
+        }
+      } else {
+        // Same step — check if we crossed into a closer distance band
+        if (lastAnnouncedDistanceBandRef.current === 'none' && distToManeuver <= VOICE_FAR_THRESHOLD_M) {
+          lastAnnouncedDistanceBandRef.current = 'far';
+          speakNavigation(buildVoiceInstruction(step, distToManeuver));
+        } else if (lastAnnouncedDistanceBandRef.current === 'far' && distToManeuver <= VOICE_NEAR_THRESHOLD_M) {
+          lastAnnouncedDistanceBandRef.current = 'near';
+          speakNavigation(step.maneuver.instruction || step.name || '');
+        }
+      }
     }
 
     // Estimate remaining duration
@@ -811,10 +903,11 @@ const handleDeleteLocation = (location: SavedLocation) => {
     const totalDur = currentRoute.duration;
     const remainingDuration = totalDist > 0 ? (remaining / totalDist) * totalDur : 0;
 
-    // Check off-route
+    // ─── Off-route detection & auto-reroute ─────────────────────────
     if (distance > OFF_ROUTE_THRESHOLD_M && !session.isRerouting) {
       const now = Date.now();
       if (now - session.lastRerouteTime > REROUTE_COOLDOWN_MS) {
+        if (voiceEnabled) speakNavigation('Rerouting.');
         triggerReroute(lat, lng);
       }
     }
@@ -826,7 +919,7 @@ const handleDeleteLocation = (location: SavedLocation) => {
       remainingDistance: remaining,
       remainingDuration: remainingDuration,
     });
-  }, [sendToWebView, updateNavigationProgress]);
+  }, [sendToWebView, updateNavigationProgress, voiceEnabled]);
 
   const triggerReroute = useCallback(async (lat: number, lng: number) => {
     const dest = useNavigationStore.getState().selectedDestination;
@@ -848,14 +941,26 @@ const handleDeleteLocation = (location: SavedLocation) => {
           const newDecoded = [...session.decodedRoutes];
           newRoutes[session.selectedRouteIndex] = newRoute;
           newDecoded[session.selectedRouteIndex] = decoded;
+          // Reset step tracking for the new route
+          lastAnnouncedStepRef.current = -1;
+          lastAnnouncedDistanceBandRef.current = 'none';
           updateNavigationProgress({
             routes: newRoutes,
             decodedRoutes: newDecoded,
             isRerouting: false,
+            currentStepIndex: 0,
+            currentLegIndex: 0,
             remainingDistance: newRoute.distance,
             remainingDuration: newRoute.duration,
           } as any);
           sendToWebView({ type: 'updateRoute', coords: decoded });
+          // Announce the first instruction of the new route
+          if (voiceEnabled) {
+            const firstStep = newRoute.legs?.[0]?.steps?.[0];
+            if (firstStep) {
+              setTimeout(() => speakNavigation(firstStep.maneuver.instruction || 'Route recalculated.'), 800);
+            }
+          }
         }
       }
     } catch (e) {
@@ -864,12 +969,18 @@ const handleDeleteLocation = (location: SavedLocation) => {
       updateNavigationProgress({ isRerouting: false });
       sendToWebView({ type: 'reroutingFinished' });
     }
-  }, [updateNavigationProgress, sendToWebView]);
+  }, [updateNavigationProgress, sendToWebView, voiceEnabled]);
 
   const stopNavigation = useCallback(() => {
     gpsSubscription.current?.remove();
     gpsSubscription.current = null;
     mapReadyRef.current = false;
+    lastAnnouncedStepRef.current = -1;
+    lastAnnouncedDistanceBandRef.current = 'none';
+    Speech.stop();
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
     endNavigationSession();
     setViewMode('setup');
   }, [endNavigationSession]);
@@ -1014,12 +1125,12 @@ const handleDeleteLocation = (location: SavedLocation) => {
           <View style={navStyles.infoPanelRow}>
             <View style={navStyles.infoItem}>
               <Text style={navStyles.infoValue}>{formatETA(navigationSession.remainingDuration)}</Text>
-              <Text style={navStyles.infoLabel}>Arrivée</Text>
+              <Text style={navStyles.infoLabel}>ETA</Text>
             </View>
             <View style={navStyles.infoDivider} />
             <View style={navStyles.infoItem}>
               <Text style={navStyles.infoValue}>{formatDuration(navigationSession.remainingDuration)}</Text>
-              <Text style={navStyles.infoLabel}>Durée</Text>
+              <Text style={navStyles.infoLabel}>Duration</Text>
             </View>
             <View style={navStyles.infoDivider} />
             <View style={navStyles.infoItem}>
@@ -1027,10 +1138,26 @@ const handleDeleteLocation = (location: SavedLocation) => {
               <Text style={navStyles.infoLabel}>Distance</Text>
             </View>
           </View>
-          <TouchableOpacity style={navStyles.stopButton} onPress={stopNavigation}>
-            <Ionicons name="close" size={20} color="#fff" />
-            <Text style={navStyles.stopButtonText}>Arrêter</Text>
-          </TouchableOpacity>
+          <View style={navStyles.bottomActions}>
+            <TouchableOpacity
+              style={navStyles.voiceToggle}
+              onPress={() => {
+                setVoiceEnabled(!voiceEnabled);
+                if (voiceEnabled) {
+                  Speech.stop();
+                  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                  }
+                }
+              }}
+            >
+              <Ionicons name={voiceEnabled ? 'volume-high' : 'volume-mute'} size={20} color={voiceEnabled ? '#4285F4' : '#888'} />
+            </TouchableOpacity>
+            <TouchableOpacity style={navStyles.stopButton} onPress={stopNavigation}>
+              <Ionicons name="close" size={20} color="#fff" />
+              <Text style={navStyles.stopButtonText}>Stop</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -2190,14 +2317,28 @@ const navStyles = StyleSheet.create({
     height: 30,
     backgroundColor: '#e0e0e0',
   },
+  bottomActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 12,
+  },
+  voiceToggle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   stopButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#EA4335',
     borderRadius: 12,
     paddingVertical: 12,
-    marginTop: 16,
     gap: 6,
   },
   stopButtonText: {
