@@ -502,7 +502,7 @@ export default function SeerahMapScreen() {
             .tooltip-quiz-btn { padding: 4px 4px; font-size: 8px; border-radius: 4px; gap: 2px; }
           }
         </style>
-        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDEwtaEWWtkJb6zyIyRQdxPMjmcpasx0H8&callback=initMap" async defer></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyBpwLwnnmxh5_Iuit5w8BQq2R7-Ea_cg&callback=initMap" async defer></script>
       </head>
       <body>
         <div id="map"></div>
@@ -1184,7 +1184,7 @@ export default function SeerahMapScreen() {
             height: 28px !important;
           }
         </style>
-        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDEwtaEWWtkJb6zyIyRQdxPMjmcpasx0H8&callback=initMap" async defer></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyBpwLwnnmxh5_Iuit5w8BQq2R7-Ea_cg&callback=initMap" async defer></script>
       </head>
       <body>
         <div id="map"></div>
