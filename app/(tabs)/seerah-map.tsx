@@ -502,11 +502,10 @@ export default function SeerahMapScreen() {
             .tooltip-quiz-btn { padding: 4px 4px; font-size: 8px; border-radius: 4px; gap: 2px; }
           }
         </style>
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyBpwLwnnmxh5_Iuit5w8BQq2R7-Ea_cg&callback=initMap" async defer></script>
       </head>
       <body>
-        <div id="map" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
+        <div id="map"></div>
         <div id="tooltip" class="tooltip">
           <div class="tooltip-header">
             <span id="tooltip-category" class="tooltip-category">événement</span>
@@ -546,9 +545,31 @@ export default function SeerahMapScreen() {
           const markers = ${JSON.stringify(markers)};
           const totalEvents = markers.length;
 
+          // Dark map style
+          // Lighter vintage/historical map style for better visibility
+          const mapStyle = [
+            { elementType: "geometry", stylers: [{ color: "#f5f1e8" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#5c4a32" }] },
+            { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#c4a35a" }] },
+            { featureType: "administrative.country", elementType: "labels.text.fill", stylers: [{ color: "#8b7355" }] },
+            { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#6b5344" }] },
+            { featureType: "poi", elementType: "geometry", stylers: [{ color: "#e8e0d0" }] },
+            { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#7a6b5a" }] },
+            { featureType: "poi.park", elementType: "geometry.fill", stylers: [{ color: "#d4e5c7" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#e0d6c6" }] },
+            { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#d4c4a8" }] },
+            { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#c4a35a" }] },
+            { featureType: "transit", elementType: "geometry", stylers: [{ color: "#ddd5c5" }] },
+            { featureType: "water", elementType: "geometry", stylers: [{ color: "#a8c8d8" }] },
+            { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#5a7a8a" }] },
+            { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#ebe5d8" }] },
+          ];
+
           let map;
           let markerObjects = [];
           let activeMarkerIndex = -1;
+          let currentInfoWindow = null;
           const tooltip = document.getElementById('tooltip');
 
           const camelMarkerUrl = 'https://d6artovf3mfn.cloudfront.net/images/Gemini_Generated_Image_8tspiy8tspiy8tsp-removebg-preview%20(1).png';
@@ -557,61 +578,59 @@ export default function SeerahMapScreen() {
             return '<svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="pG' + id + '" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:' + pinColor + ';stop-opacity:1" /><stop offset="100%" style="stop-color:' + darkColor + ';stop-opacity:1" /></linearGradient></defs><ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/><path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z" fill="url(#pG' + id + ')" stroke="#ffffff" stroke-width="2.5"/><circle cx="20" cy="15" r="6" fill="#ffffff"/></svg>';
           }
 
-          function makePinIcon(pinColor, darkColor, idx) {
-            return L.divIcon({
-              html: makePinSvg(pinColor, darkColor, idx),
-              className: '',
-              iconSize: [40, 48],
-              iconAnchor: [20, 44],
-            });
-          }
-
-          function makeCamelIcon() {
-            return L.divIcon({
-              html: '<img src="' + camelMarkerUrl + '" style="width:120px;height:120px;object-fit:contain;" />',
-              className: '',
-              iconSize: [120, 120],
-              iconAnchor: [60, 105],
-            });
-          }
-
           function setPinIcon(markerObj, idx) {
             const isVisited = markerObj.data.isVisited || markers[idx]?.isVisited;
             const pinColor = isVisited ? '#22c55e' : '#c4a35a';
             const darkColor = isVisited ? '#15803d' : '#8b7355';
-            markerObj.marker.setIcon(makePinIcon(pinColor, darkColor, idx));
-            markerObj.marker.setZIndexOffset(idx);
+            markerObj.marker.setIcon({
+              url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(makePinSvg(pinColor, darkColor, idx)),
+              scaledSize: new google.maps.Size(40, 48),
+              anchor: new google.maps.Point(20, 44),
+            });
+            markerObj.marker.setZIndex(idx);
           }
 
           function setCamelIcon(markerObj) {
-            markerObj.marker.setIcon(makeCamelIcon());
-            markerObj.marker.setZIndexOffset(1000);
+            markerObj.marker.setIcon({
+              url: camelMarkerUrl,
+              scaledSize: new google.maps.Size(120, 120),
+              anchor: new google.maps.Point(60, 105),
+            });
+            markerObj.marker.setZIndex(1000);
           }
 
           function initMap() {
-            map = L.map('map', {
-              center: [24.5, 42.0],
+            map = new google.maps.Map(document.getElementById('map'), {
+              center: { lat: 24.5, lng: 42.0 },
               zoom: 5,
+              styles: mapStyle,
+              disableDefaultUI: true,
               zoomControl: false,
-              attributionControl: false,
+              mapTypeControl: false,
+              streetViewControl: false,
+              fullscreenControl: false,
+              backgroundColor: '#f5f1e8',
             });
 
-            L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}', {
-              maxZoom: 16,
-            }).addTo(map);
-
-            // Create markers
+            // Create markers using legacy Marker API (compatible with all WebViews)
             markers.forEach((marker, idx) => {
               const pinColor = marker.isVisited ? '#22c55e' : '#c4a35a';
               const darkColor = marker.isVisited ? '#15803d' : '#8b7355';
 
-              const leafletMarker = L.marker([marker.lat, marker.lng], {
-                icon: makePinIcon(pinColor, darkColor, idx),
+              const gmMarker = new google.maps.Marker({
+                position: { lat: marker.lat, lng: marker.lng },
+                map: map,
                 title: marker.title,
-                zIndexOffset: idx,
-              }).addTo(map);
+                icon: {
+                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(makePinSvg(pinColor, darkColor, idx)),
+                  scaledSize: new google.maps.Size(40, 48),
+                  anchor: new google.maps.Point(20, 44),
+                },
+                animation: google.maps.Animation.DROP,
+                optimized: false,
+              });
 
-              leafletMarker.on('click', () => {
+              gmMarker.addListener('click', () => {
                 showTooltipForMarker(idx);
                 window.ReactNativeWebView?.postMessage(JSON.stringify({
                   type: 'markerClick',
@@ -620,11 +639,11 @@ export default function SeerahMapScreen() {
                 }));
               });
 
-              markerObjects.push({ marker: leafletMarker, data: marker });
+              markerObjects.push({ marker: gmMarker, data: marker });
             });
 
-            // Reposition tooltip when map moves
-            map.on('move', function() {
+            // Reposition tooltip when map moves so it stays above camel marker
+            map.addListener('bounds_changed', function() {
               if (activeMarkerIndex >= 0 && tooltip.classList.contains('show')) {
                 repositionTooltip(activeMarkerIndex);
               }
@@ -650,12 +669,18 @@ export default function SeerahMapScreen() {
             const marker = markers[idx];
             if (!marker) return;
             try {
+              const projection = map.getProjection();
+              const bounds = map.getBounds();
+              if (!projection || !bounds) return;
               const mapDiv = document.getElementById('map');
               const mapWidth = mapDiv.offsetWidth;
               const tooltipWidth = Math.min(260, mapWidth - 16);
-              const point = map.latLngToContainerPoint(L.latLng(marker.lat, marker.lng));
-              const pixelX = point.x;
-              const pixelY = point.y;
+              const scale = Math.pow(2, map.getZoom());
+              const ne = projection.fromLatLngToPoint(bounds.getNorthEast());
+              const sw = projection.fromLatLngToPoint(bounds.getSouthWest());
+              const point = projection.fromLatLngToPoint(new google.maps.LatLng(marker.lat, marker.lng));
+              const pixelX = (point.x - sw.x) * scale;
+              const pixelY = (point.y - ne.y) * scale;
               const tooltipLeft = Math.max(4, Math.min(pixelX - tooltipWidth / 2, mapWidth - tooltipWidth - 4));
               const tooltipTop = Math.max(4, pixelY - 155);
               tooltip.style.left = tooltipLeft + 'px';
@@ -686,18 +711,29 @@ export default function SeerahMapScreen() {
             tooltip.style.width = tooltipWidth + 'px';
             tooltip.style.minWidth = 'auto';
 
-            // Get marker pixel position using Leaflet
+            // Get marker pixel position on screen using Google Maps projection
             try {
-              const point = map.latLngToContainerPoint(L.latLng(marker.lat, marker.lng));
-              const pixelX = point.x;
-              const pixelY = point.y;
+              const projection = map.getProjection();
+              const bounds = map.getBounds();
+              if (projection && bounds) {
+                const scale = Math.pow(2, map.getZoom());
+                const ne = projection.fromLatLngToPoint(bounds.getNorthEast());
+                const sw = projection.fromLatLngToPoint(bounds.getSouthWest());
+                const point = projection.fromLatLngToPoint(new google.maps.LatLng(marker.lat, marker.lng));
 
-              // Position tooltip centered above the camel icon (120px tall)
-              const tooltipLeft = Math.max(4, Math.min(pixelX - tooltipWidth / 2, mapWidth - tooltipWidth - 4));
-              const tooltipTop = Math.max(4, pixelY - 155);
+                // Calculate pixel position relative to map container
+                const pixelX = (point.x - sw.x) * scale;
+                const pixelY = (point.y - ne.y) * scale;
 
-              tooltip.style.left = tooltipLeft + 'px';
-              tooltip.style.top = tooltipTop + 'px';
+                // Position tooltip centered above the camel icon (120px tall)
+                const tooltipLeft = Math.max(4, Math.min(pixelX - tooltipWidth / 2, mapWidth - tooltipWidth - 4));
+                const tooltipTop = Math.max(4, pixelY - 155);
+
+                tooltip.style.left = tooltipLeft + 'px';
+                tooltip.style.top = tooltipTop + 'px';
+              } else {
+                throw new Error('no projection');
+              }
             } catch(e) {
               // Fallback: center horizontally, place above center of map
               tooltip.style.left = ((mapWidth - tooltipWidth) / 2) + 'px';
@@ -712,8 +748,10 @@ export default function SeerahMapScreen() {
 
             activeMarkerIndex = idx;
 
-            // Set active marker to camel icon
+            // Set active marker to camel icon with bounce
             setCamelIcon(markerObj);
+            markerObj.marker.setAnimation(google.maps.Animation.BOUNCE);
+            setTimeout(() => markerObj.marker.setAnimation(null), 1400);
           }
 
           function hideTooltip() {
@@ -722,7 +760,83 @@ export default function SeerahMapScreen() {
 
           // Store previous location for smooth transitions
           let previousLocation = null;
+          let isAnimating = false;
+          const INITIAL_ZOOM = 5;
           const TARGET_ZOOM = 11;
+          const TRANSITION_ZOOM = 6;
+
+          // Calculate distance between two points
+          function getDistance(lat1, lng1, lat2, lng2) {
+            return Math.sqrt(Math.pow(lat2 - lat1, 2) + Math.pow(lng2 - lng1, 2));
+          }
+
+          // Smooth easing function
+          function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          }
+
+          // Animate camera smoothly with zoom out -> pan -> zoom in
+          function animateCamera(targetLat, targetLng, callback) {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            const currentCenter = map.getCenter();
+            const currentZoom = map.getZoom();
+            const distance = previousLocation
+              ? getDistance(previousLocation.lat, previousLocation.lng, targetLat, targetLng)
+              : 0;
+
+            const needsZoomOut = distance > 0.5;
+            const zoomOutLevel = needsZoomOut ? Math.max(TRANSITION_ZOOM, currentZoom - 4) : currentZoom;
+            const animationDuration = needsZoomOut ? 2000 : 1200;
+            const startTime = performance.now();
+
+            function animate(currentTime) {
+              const elapsed = currentTime - startTime;
+              const progress = Math.min(elapsed / animationDuration, 1);
+              const easedProgress = easeInOutCubic(progress);
+
+              if (needsZoomOut) {
+                if (progress < 0.3) {
+                  const phaseProgress = progress / 0.3;
+                  const zoomProgress = easeInOutCubic(phaseProgress);
+                  const newZoom = currentZoom - (currentZoom - zoomOutLevel) * zoomProgress;
+                  map.setZoom(newZoom);
+                } else if (progress < 0.7) {
+                  const phaseProgress = (progress - 0.3) / 0.4;
+                  const panProgress = easeInOutCubic(phaseProgress);
+                  const newLat = currentCenter.lat() + (targetLat - currentCenter.lat()) * panProgress;
+                  const newLng = currentCenter.lng() + (targetLng - currentCenter.lng()) * panProgress;
+                  map.setCenter({ lat: newLat, lng: newLng });
+                  map.setZoom(zoomOutLevel);
+                } else {
+                  const phaseProgress = (progress - 0.7) / 0.3;
+                  const zoomProgress = easeInOutCubic(phaseProgress);
+                  const newZoom = zoomOutLevel + (TARGET_ZOOM - zoomOutLevel) * zoomProgress;
+                  map.setCenter({ lat: targetLat, lng: targetLng });
+                  map.setZoom(newZoom);
+                }
+              } else {
+                const newLat = currentCenter.lat() + (targetLat - currentCenter.lat()) * easedProgress;
+                const newLng = currentCenter.lng() + (targetLng - currentCenter.lng()) * easedProgress;
+                const newZoom = currentZoom + (TARGET_ZOOM - currentZoom) * easedProgress;
+                map.setCenter({ lat: newLat, lng: newLng });
+                map.setZoom(newZoom);
+              }
+
+              if (progress < 1) {
+                requestAnimationFrame(animate);
+              } else {
+                map.setCenter({ lat: targetLat, lng: targetLng });
+                map.setZoom(TARGET_ZOOM);
+                previousLocation = { lat: targetLat, lng: targetLng };
+                isAnimating = false;
+                if (callback) callback();
+              }
+            }
+
+            requestAnimationFrame(animate);
+          }
 
           function panToEvent(lat, lng, index) {
             const idx = index - 1;
@@ -733,22 +847,22 @@ export default function SeerahMapScreen() {
             }
             activeMarkerIndex = idx;
 
-            // Use flyTo for smooth animation
-            const distance = previousLocation
-              ? Math.sqrt(Math.pow(lat - previousLocation.lat, 2) + Math.pow(lng - previousLocation.lng, 2))
-              : 0;
-            const duration = distance > 0.5 ? 2.0 : 1.2;
+            // Calculate offset so marker appears BELOW the tooltip
+            const mapDiv = document.getElementById('map');
+            const mapHeight = mapDiv.offsetHeight;
+            const offsetPixels = mapHeight * 0.3;
 
-            map.flyTo([lat, lng], TARGET_ZOOM, { duration: duration });
-
-            previousLocation = { lat: lat, lng: lng };
-
-            // Show tooltip after animation
-            setTimeout(() => {
-              if (idx >= 0 && idx < markers.length) {
-                showTooltipForMarker(idx);
-              }
-            }, duration * 1000 + 200);
+            // Animate camera smoothly
+            animateCamera(lat, lng, () => {
+              setTimeout(() => {
+                map.panBy(0, -offsetPixels);
+                setTimeout(() => {
+                  if (idx >= 0 && idx < markers.length) {
+                    showTooltipForMarker(idx);
+                  }
+                }, 200);
+              }, 100);
+            });
           }
 
           function readMore() {
@@ -784,8 +898,7 @@ export default function SeerahMapScreen() {
             map.setZoom(map.getZoom() - 1);
           }
 
-          // Initialize map when DOM is ready
-          initMap();
+          window.initMap = initMap;
         </script>
       </body>
       </html>
@@ -1050,32 +1163,31 @@ export default function SeerahMapScreen() {
             .info-quiz-btn { padding: 5px 8px; font-size: 10px; }
           }
 
-          /* Leaflet popup overrides */
-          .leaflet-popup-content-wrapper {
+          /* Hide default Google info window styling */
+          .gm-style-iw-c {
             padding: 0 !important;
-            border-radius: 12px !important;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.08) !important;
-            overflow: hidden;
+            border-radius: 16px !important;
+            box-shadow: none !important;
           }
-          .leaflet-popup-content {
-            margin: 0 !important;
-            width: auto !important;
+          .gm-style-iw-d {
+            overflow: visible !important;
           }
-          .leaflet-popup-tip {
+          .gm-style-iw-tc {
             display: none !important;
           }
-          .leaflet-popup-close-button {
+          .gm-ui-hover-effect {
             top: 8px !important;
             right: 8px !important;
-            color: white !important;
-            font-size: 20px !important;
+            background: rgba(255,255,255,0.9) !important;
+            border-radius: 50% !important;
+            width: 28px !important;
+            height: 28px !important;
           }
         </style>
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAyBpwLwnnmxh5_Iuit5w8BQq2R7-Ea_cg&callback=initMap" async defer></script>
       </head>
       <body>
-        <div id="map" style="width:100%;height:100%;position:absolute;top:0;left:0;"></div>
+        <div id="map"></div>
 
         <!-- Map Type Toggle -->
         <div class="map-type-toggle">
@@ -1095,67 +1207,111 @@ export default function SeerahMapScreen() {
           </button>
         </div>
 
+        <div id="tooltip" class="tooltip" style="display:none;">
+          <div class="tooltip-header">
+            <span id="tooltip-category" class="tooltip-category">événement</span>
+            <span id="tooltip-year" class="tooltip-year">571</span>
+          </div>
+          <div class="tooltip-location">
+            <span>📍</span>
+            <span id="tooltip-location-text">Location</span>
+            <span id="tooltip-counter" class="tooltip-counter">1 / 33</span>
+          </div>
+          <div class="tooltip-content">
+            <div id="tooltip-image" class="tooltip-image">🕌</div>
+            <div class="tooltip-text">
+              <div id="tooltip-title" class="tooltip-title">Title</div>
+              <div id="tooltip-desc" class="tooltip-desc">Description</div>
+            </div>
+          </div>
+          <div class="tooltip-link">
+            <a href="#" id="readmore-link">En savoir plus →</a>
+          </div>
+          <div class="tooltip-arrow"></div>
+        </div>
         <script>
           const markers = ${JSON.stringify(markers)};
           const totalEvents = markers.length;
           let map, markerObjects = [], activeIdx = -1;
+          let currentInfoWindow = null;
           let currentMapType = 'roadmap';
-          let currentTileLayer = null;
           const categoryIcons = { sacred: '🕋', battle: '⚔️', revelation: '📖', migration: '🐪', life_event: '🌟' };
 
           // Camel marker image URL for active event location
-          const camelMarkerUrl = 'https://d6artovf3mfn.cloudfront.net/images/Gemini_Generated_Image_8tspiy8tspiy8tsp-removebg-preview%20(1).png';
+          window.camelMarkerUrl = 'https://d6artovf3mfn.cloudfront.net/images/Gemini_Generated_Image_8tspiy8tspiy8tsp-removebg-preview%20(1).png';
 
-          function makePinSvg(pinColor, darkColor, idx) {
-            return '<svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="wG' + idx + '" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:' + pinColor + ';stop-opacity:1" /><stop offset="100%" style="stop-color:' + darkColor + ';stop-opacity:1" /></linearGradient></defs><ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/><path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z" fill="url(#wG' + idx + ')" stroke="#ffffff" stroke-width="2.5"/><circle cx="20" cy="15" r="6" fill="#ffffff"/></svg>';
-          }
-
-          function makePinIcon(pinColor, darkColor, idx) {
-            return L.divIcon({
-              html: makePinSvg(pinColor, darkColor, idx),
-              className: '',
-              iconSize: [40, 48],
-              iconAnchor: [20, 44],
-            });
-          }
-
-          function makeCamelIcon() {
-            return L.divIcon({
-              html: '<img src="' + camelMarkerUrl + '" style="width:120px;height:120px;object-fit:contain;" />',
-              className: '',
-              iconSize: [120, 120],
-              iconAnchor: [60, 105],
-            });
-          }
-
-          // Tile layer URLs
-          const TILE_ROADMAP = 'https://server.arcgisonline.com/ArcGIS/rest/services/NatGeo_World_Map/MapServer/tile/{z}/{y}/{x}';
-          const TILE_SATELLITE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+          // Lighter vintage/historical map style
+          const mapStyle = [
+            { elementType: "geometry", stylers: [{ color: "#f5f1e8" }] },
+            { elementType: "labels.text.stroke", stylers: [{ color: "#ffffff" }] },
+            { elementType: "labels.text.fill", stylers: [{ color: "#5c4a32" }] },
+            { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#c4a35a" }] },
+            { featureType: "administrative.country", elementType: "labels.text.fill", stylers: [{ color: "#8b7355" }] },
+            { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#6b5344" }] },
+            { featureType: "poi", elementType: "geometry", stylers: [{ color: "#e8e0d0" }] },
+            { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#7a6b5a" }] },
+            { featureType: "poi.park", elementType: "geometry.fill", stylers: [{ color: "#d4e5c7" }] },
+            { featureType: "road", elementType: "geometry", stylers: [{ color: "#e0d6c6" }] },
+            { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#d4c4a8" }] },
+            { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#c4a35a" }] },
+            { featureType: "water", elementType: "geometry", stylers: [{ color: "#a8c8d8" }] },
+            { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#5a7a8a" }] },
+            { featureType: "landscape.natural", elementType: "geometry", stylers: [{ color: "#ebe5d8" }] },
+          ];
 
           function initMap() {
-            map = L.map('map', {
-              center: [24.5, 42.0],
+            map = new google.maps.Map(document.getElementById('map'), {
+              center: { lat: 24.5, lng: 42.0 },
               zoom: 5,
+              styles: mapStyle,
+              disableDefaultUI: true,
               zoomControl: true,
-              attributionControl: false,
+              zoomControlOptions: {
+                position: google.maps.ControlPosition.LEFT_CENTER
+              },
+              backgroundColor: '#f5f1e8',
             });
-
-            currentTileLayer = L.tileLayer(TILE_ROADMAP, {
-              maxZoom: 16,
-            }).addTo(map);
 
             // Create markers - normal pins by default, camel only for active
             markers.forEach((m, idx) => {
+              // Create normal pin marker icon (golden for unvisited, green for visited)
               const pinColor = m.isVisited ? '#22c55e' : '#c4a35a';
               const darkColor = m.isVisited ? '#15803d' : '#8b7355';
+              const pinSvg = \`
+                <svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <filter id="shadow\${idx}" x="-50%" y="-50%" width="200%" height="200%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+                    </filter>
+                    <linearGradient id="pinGrad\${idx}" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" style="stop-color:\${pinColor};stop-opacity:1" />
+                      <stop offset="100%" style="stop-color:\${darkColor};stop-opacity:1" />
+                    </linearGradient>
+                  </defs>
+                  <ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/>
+                  <path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z"
+                        fill="url(#pinGrad\${idx})"
+                        stroke="#ffffff"
+                        stroke-width="2.5"
+                        filter="url(#shadow\${idx})"/>
+                  <circle cx="20" cy="15" r="6" fill="#ffffff"/>
+                </svg>
+              \`;
 
-              const leafletMarker = L.marker([m.lat, m.lng], {
-                icon: makePinIcon(pinColor, darkColor, idx),
+              const marker = new google.maps.Marker({
+                position: { lat: m.lat, lng: m.lng },
+                map: map,
                 title: m.title,
-                zIndexOffset: idx,
-              }).addTo(map);
+                icon: {
+                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg),
+                  scaledSize: new google.maps.Size(40, 48),
+                  anchor: new google.maps.Point(20, 44),
+                },
+                animation: google.maps.Animation.DROP,
+                optimized: false,
+              });
 
-              // Create popup content
+              // Create modern info window content
               const infoContent = \`
                 <div class="custom-info-window">
                   <div class="info-header">
@@ -1192,19 +1348,24 @@ export default function SeerahMapScreen() {
                 </div>
               \`;
 
-              leafletMarker.bindPopup(infoContent, {
+              const infoWindow = new google.maps.InfoWindow({
+                content: infoContent,
                 maxWidth: Math.min(280, window.innerWidth - 40),
-                minWidth: 200,
-                className: '',
-                closeButton: true,
-                autoPan: false,
               });
 
-              leafletMarker.on('click', () => {
+              marker.addListener('click', () => {
                 selectMarker(idx);
               });
 
-              markerObjects.push({ marker: leafletMarker, data: m });
+              // Add bounce animation on hover
+              marker.addListener('mouseover', () => {
+                if (activeIdx !== idx) {
+                  marker.setAnimation(google.maps.Animation.BOUNCE);
+                  setTimeout(() => marker.setAnimation(null), 700);
+                }
+              });
+
+              markerObjects.push({ marker, infoWindow, data: m });
             });
 
             // Listen for messages from parent
@@ -1219,11 +1380,16 @@ export default function SeerahMapScreen() {
                 });
                 // Refresh non-active marker icons to reflect visited state
                 markerObjects.forEach((obj, i) => {
-                  if (i === activeIdx) return;
+                  if (i === activeIdx) return; // Don't change the active camel marker
                   const isVisited = obj.data.isVisited || markers[i]?.isVisited;
                   const pinColor = isVisited ? '#22c55e' : '#c4a35a';
                   const darkColor = isVisited ? '#15803d' : '#8b7355';
-                  obj.marker.setIcon(makePinIcon(pinColor, darkColor, i));
+                  const pinSvg = '<svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg"><defs><filter id="pS' + i + '" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/></filter><linearGradient id="pG' + i + '" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" style="stop-color:' + pinColor + ';stop-opacity:1" /><stop offset="100%" style="stop-color:' + darkColor + ';stop-opacity:1" /></linearGradient></defs><ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/><path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z" fill="url(#pG' + i + ')" stroke="#ffffff" stroke-width="2.5" filter="url(#pS' + i + ')"/><circle cx="20" cy="15" r="6" fill="#ffffff"/></svg>';
+                  obj.marker.setIcon({
+                    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg),
+                    scaledSize: new google.maps.Size(40, 48),
+                    anchor: new google.maps.Point(20, 44),
+                  });
                 });
               }
             });
@@ -1235,15 +1401,14 @@ export default function SeerahMapScreen() {
 
           function setMapType(type) {
             currentMapType = type;
-            if (currentTileLayer) {
-              map.removeLayer(currentTileLayer);
-            }
             if (type === 'roadmap') {
-              currentTileLayer = L.tileLayer(TILE_ROADMAP, { maxZoom: 16 }).addTo(map);
+              map.setMapTypeId(google.maps.MapTypeId.ROADMAP);
+              map.setOptions({ styles: mapStyle });
               document.getElementById('btn-roadmap').classList.add('active');
               document.getElementById('btn-satellite').classList.remove('active');
             } else {
-              currentTileLayer = L.tileLayer(TILE_SATELLITE, { maxZoom: 18 }).addTo(map);
+              map.setMapTypeId(google.maps.MapTypeId.HYBRID);
+              map.setOptions({ styles: [] });
               document.getElementById('btn-satellite').classList.add('active');
               document.getElementById('btn-roadmap').classList.remove('active');
             }
@@ -1251,15 +1416,101 @@ export default function SeerahMapScreen() {
 
           // Store previous location for smooth transitions
           let previousLocation = null;
+          let isAnimating = false;
+          const INITIAL_ZOOM = 5;
           const TARGET_ZOOM = 11;
+          const TRANSITION_ZOOM = 6; // Zoom level when transitioning between distant locations
+
+          // Calculate distance between two points (in degrees, approximate)
+          function getDistance(lat1, lng1, lat2, lng2) {
+            return Math.sqrt(Math.pow(lat2 - lat1, 2) + Math.pow(lng2 - lng1, 2));
+          }
+
+          // Smooth easing function
+          function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+          }
+
+          // Animate camera smoothly with zoom out -> pan -> zoom in
+          function animateCamera(targetLat, targetLng, callback) {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            const currentCenter = map.getCenter();
+            const currentZoom = map.getZoom();
+            const distance = previousLocation
+              ? getDistance(previousLocation.lat, previousLocation.lng, targetLat, targetLng)
+              : 0;
+
+            // Determine if we need to zoom out first (for distant locations)
+            const needsZoomOut = distance > 0.5; // More than ~50km apart
+            const zoomOutLevel = needsZoomOut ? Math.max(TRANSITION_ZOOM, currentZoom - 4) : currentZoom;
+
+            const animationDuration = needsZoomOut ? 2000 : 1200; // Longer for distant transitions
+            const startTime = performance.now();
+
+            function animate(currentTime) {
+              const elapsed = currentTime - startTime;
+              const progress = Math.min(elapsed / animationDuration, 1);
+              const easedProgress = easeInOutCubic(progress);
+
+              if (needsZoomOut) {
+                // Three-phase animation: zoom out -> pan -> zoom in
+                if (progress < 0.3) {
+                  // Phase 1: Zoom out
+                  const phaseProgress = progress / 0.3;
+                  const zoomProgress = easeInOutCubic(phaseProgress);
+                  const newZoom = currentZoom - (currentZoom - zoomOutLevel) * zoomProgress;
+                  map.setZoom(newZoom);
+                } else if (progress < 0.7) {
+                  // Phase 2: Pan to new location
+                  const phaseProgress = (progress - 0.3) / 0.4;
+                  const panProgress = easeInOutCubic(phaseProgress);
+                  const newLat = currentCenter.lat() + (targetLat - currentCenter.lat()) * panProgress;
+                  const newLng = currentCenter.lng() + (targetLng - currentCenter.lng()) * panProgress;
+                  map.setCenter({ lat: newLat, lng: newLng });
+                  map.setZoom(zoomOutLevel);
+                } else {
+                  // Phase 3: Zoom in to target
+                  const phaseProgress = (progress - 0.7) / 0.3;
+                  const zoomProgress = easeInOutCubic(phaseProgress);
+                  const newZoom = zoomOutLevel + (TARGET_ZOOM - zoomOutLevel) * zoomProgress;
+                  map.setCenter({ lat: targetLat, lng: targetLng });
+                  map.setZoom(newZoom);
+                }
+              } else {
+                // Simple smooth pan and zoom for nearby locations
+                const newLat = currentCenter.lat() + (targetLat - currentCenter.lat()) * easedProgress;
+                const newLng = currentCenter.lng() + (targetLng - currentCenter.lng()) * easedProgress;
+                const newZoom = currentZoom + (TARGET_ZOOM - currentZoom) * easedProgress;
+                map.setCenter({ lat: newLat, lng: newLng });
+                map.setZoom(newZoom);
+              }
+
+              if (progress < 1) {
+                requestAnimationFrame(animate);
+              } else {
+                // Animation complete
+                map.setCenter({ lat: targetLat, lng: targetLng });
+                map.setZoom(TARGET_ZOOM);
+                previousLocation = { lat: targetLat, lng: targetLng };
+                isAnimating = false;
+                if (callback) callback();
+              }
+            }
+
+            requestAnimationFrame(animate);
+          }
 
           function selectMarker(idx) {
             const m = markers[idx];
             const markerObj = markerObjects[idx];
             if (!m || !markerObj) return;
 
-            // Close all popups
-            map.closePopup();
+            // Close previous info window
+            if (currentInfoWindow) {
+              currentInfoWindow.close();
+            }
 
             // Update marker icons - camel image for active, normal pins for others
             markerObjects.forEach((obj, i) => {
@@ -1267,49 +1518,80 @@ export default function SeerahMapScreen() {
               const isVisited = obj.data.isVisited || i <= idx;
 
               if (isActive) {
-                obj.marker.setIcon(makeCamelIcon());
-                obj.marker.setZIndexOffset(1000);
+                // Use the camel image for active marker (larger size 120x120)
+                obj.marker.setIcon({
+                  url: window.camelMarkerUrl || 'https://d6artovf3mfn.cloudfront.net/images/Gemini_Generated_Image_8tspiy8tspiy8tsp-removebg-preview%20(1).png',
+                  scaledSize: new google.maps.Size(120, 120),
+                  anchor: new google.maps.Point(60, 105),
+                });
               } else {
+                // Normal pin icon for non-active markers
                 const pinColor = isVisited ? '#22c55e' : '#c4a35a';
                 const darkColor = isVisited ? '#15803d' : '#8b7355';
-                obj.marker.setIcon(makePinIcon(pinColor, darkColor, i));
-                obj.marker.setZIndexOffset(i);
+                const pinSvg = \`
+                  <svg width="40" height="48" viewBox="0 0 40 48" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                      <filter id="pinShadow\${i}" x="-50%" y="-50%" width="200%" height="200%">
+                        <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.3"/>
+                      </filter>
+                      <linearGradient id="pinGrad\${i}" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:\${pinColor};stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:\${darkColor};stop-opacity:1" />
+                      </linearGradient>
+                    </defs>
+                    <ellipse cx="20" cy="44" rx="8" ry="3" fill="rgba(0,0,0,0.2)"/>
+                    <path d="M20 0C11.716 0 5 6.716 5 15c0 10.5 15 29 15 29s15-18.5 15-29C35 6.716 28.284 0 20 0z"
+                          fill="url(#pinGrad\${i})"
+                          stroke="#ffffff"
+                          stroke-width="2.5"
+                          filter="url(#pinShadow\${i})"/>
+                    <circle cx="20" cy="15" r="6" fill="#ffffff"/>
+                  </svg>
+                \`;
+                obj.marker.setIcon({
+                  url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(pinSvg),
+                  scaledSize: new google.maps.Size(40, 48),
+                  anchor: new google.maps.Point(20, 44),
+                });
               }
+
+              obj.marker.setZIndex(isActive ? 1000 : i);
             });
 
             activeIdx = idx;
 
-            // Use flyTo for smooth animation
-            const distance = previousLocation
-              ? Math.sqrt(Math.pow(m.lat - previousLocation.lat, 2) + Math.pow(m.lng - previousLocation.lng, 2))
-              : 0;
-            const duration = distance > 0.5 ? 2.0 : 1.2;
+            // Calculate offset for info window positioning
+            const mapDiv = document.getElementById('map');
+            const mapHeight = mapDiv.offsetHeight;
+            const offsetPixels = mapHeight * 0.25;
 
-            map.flyTo([m.lat, m.lng], TARGET_ZOOM, { duration: duration });
-            previousLocation = { lat: m.lat, lng: m.lng };
-
-            // Open popup after animation
-            setTimeout(() => {
-              markerObj.marker.openPopup();
-            }, duration * 1000 + 200);
+            // Animate camera smoothly to the new location
+            animateCamera(m.lat, m.lng, () => {
+              // After animation, offset for info window and open it
+              setTimeout(() => {
+                map.panBy(0, offsetPixels);
+                setTimeout(() => {
+                  markerObj.infoWindow.open(map, markerObj.marker);
+                  currentInfoWindow = markerObj.infoWindow;
+                  // Bounce the marker after info window opens
+                  markerObj.marker.setAnimation(google.maps.Animation.BOUNCE);
+                  setTimeout(() => markerObj.marker.setAnimation(null), 1400);
+                }, 200);
+              }, 100);
+            });
 
             // Notify parent
             window.parent.postMessage({ type: 'markerSelected', index: idx, id: m.id }, '*');
           }
 
           function panToEvent(lat, lng, index) {
-            const distance = previousLocation
-              ? Math.sqrt(Math.pow(lat - previousLocation.lat, 2) + Math.pow(lng - previousLocation.lng, 2))
-              : 0;
-            const duration = distance > 0.5 ? 2.0 : 1.2;
-
-            map.flyTo([lat, lng], TARGET_ZOOM, { duration: duration });
-            previousLocation = { lat: lat, lng: lng };
-
-            // Select the marker after camera animation completes
-            if (index >= 0) {
-              setTimeout(() => selectMarker(index), duration * 1000 + 100);
-            }
+            // Animate camera smoothly
+            animateCamera(lat, lng, () => {
+              // Select the marker after camera animation completes
+              if (index >= 0) {
+                setTimeout(() => selectMarker(index), 100);
+              }
+            });
           }
 
           function readMore(idx) {
@@ -1319,9 +1601,6 @@ export default function SeerahMapScreen() {
           function startQuiz(idx) {
             window.parent.postMessage({ type: 'startQuiz', index: idx }, '*');
           }
-
-          // Initialize map when DOM is ready
-          initMap();
         </script>
       </body>
       </html>
