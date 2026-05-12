@@ -14,12 +14,14 @@ import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 export default function Welcome() {
   const { width, height } = useWindowDimensions();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, signInWithApple } = useAuth();
   const router = useRouter();
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const imageSize = Math.min(width * 0.65, height * 0.35, 320);
 
@@ -34,6 +36,20 @@ export default function Welcome() {
       }
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    try {
+      setError(null);
+      setAppleLoading(true);
+      await signInWithApple();
+    } catch (err) {
+      if (err instanceof Error && !err.message.includes('cancel') && !err.message.includes('ERR_CANCELED')) {
+        setError('Apple sign-in failed. Please try again.');
+      }
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -126,6 +142,33 @@ export default function Welcome() {
                 </>
               )}
             </Pressable>
+
+            {Platform.OS === 'ios' ? (
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+                cornerRadius={24}
+                style={[styles.button, styles.appleButtonNative]}
+                onPress={handleAppleSignIn}
+              />
+            ) : (
+              <Pressable
+                style={[styles.button, styles.appleButton]}
+                onPress={handleAppleSignIn}
+                disabled={appleLoading}
+              >
+                {appleLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.appleLogo}>{''}</Text>
+                    <Text style={[styles.buttonText, styles.appleButtonText]}>
+                      Continue with Apple
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            )}
           </Animated.View>
         </View>
       </ScrollView>
@@ -279,5 +322,21 @@ const styles = StyleSheet.create({
     color: '#999',
     paddingHorizontal: 16,
     fontSize: 14,
+  },
+  appleButtonNative: {
+    marginTop: 12,
+    height: Platform.OS === 'web' ? 48 : 56,
+  },
+  appleButton: {
+    marginTop: 12,
+    backgroundColor: '#000',
+  },
+  appleButtonText: {
+    color: '#fff',
+  },
+  appleLogo: {
+    fontSize: 20,
+    color: '#fff',
+    marginRight: 10,
   },
 });

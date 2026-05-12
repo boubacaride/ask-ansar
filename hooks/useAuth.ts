@@ -4,6 +4,7 @@ import { supabase } from '@/utils/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 // Required for OAuth on iOS/Android to dismiss the auth browser automatically
 WebBrowser.maybeCompleteAuthSession();
@@ -146,6 +147,52 @@ export function useAuth() {
     }
   };
 
+  const signInWithApple = async () => {
+    if (Platform.OS === 'web') {
+      const redirectTo = window.location.origin;
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'apple',
+        options: {
+          redirectTo,
+          skipBrowserRedirect: true,
+          scopes: 'name email',
+        },
+      });
+      if (error) throw error;
+      if (!data.url) throw new Error('No OAuth URL returned');
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
+      if (result.type === 'success') {
+        await handleOAuthCallbackUrl(result.url);
+      }
+      return;
+    }
+
+    const credential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    if (!credential.identityToken) {
+      throw new Error('No identity token returned from Apple');
+    }
+
+    const { error } = await supabase.auth.signInWithIdToken({
+      provider: 'apple',
+      token: credential.identityToken,
+      options: {
+        data: {
+          full_name: credential.fullName
+            ? `${credential.fullName.givenName || ''} ${credential.fullName.familyName || ''}`.trim()
+            : undefined,
+          email: credential.email || undefined,
+        },
+      },
+    });
+    if (error) throw error;
+  };
+
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -158,6 +205,7 @@ export function useAuth() {
     sendOtp,
     verifyOtp,
     signInWithGoogle,
+    signInWithApple,
     signOut,
   };
 }
