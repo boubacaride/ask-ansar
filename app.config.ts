@@ -14,6 +14,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     buildNumber: '2',
     bundleIdentifier: 'com.ansarvoyage.askansar',
+    usesAppleSignIn: true,
     config: {
       googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
     },
